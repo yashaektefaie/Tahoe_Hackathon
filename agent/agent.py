@@ -100,13 +100,27 @@ class SigSpace(Basic_Agent):
     def get_validated_target_jump(self, drug_name):
         try:
             inchikey = self.jump_tahoe_drug_metadata[self.jump_tahoe_drug_metadata.drug.isin([drug_name])]["InChIKey"].values[0]
-            targets = self.jump_similarity_score[self.jump_similarity_score.InChIKey.isin([inchikey])]["Metadata_matching_target"].unique()
-            targets = targets.tolist()
+            similarity_scores = self.jump_similarity_score[self.jump_similarity_score.InChIKey.isin([inchikey])]
+
+            # Count ORF entries with cosine_similarity > 0.2 and < -0.2
+            orf_positive = similarity_scores[(similarity_scores.Genetic_Perturbation == 'ORF') & (similarity_scores.cosine_sim > 0.2)].shape[0]
+            orf_negative = similarity_scores[(filtered_df.Genetic_Perturbation == 'ORF') & (similarity_scores.cosine_sim < -0.2)].shape[0]
+
+            # Count CRISPR entries with cosine_similarity > 0.2 and < -0.2
+            crispr_positive = similarity_scores[(similarity_scores.Genetic_Perturbation == 'CRISPR') & (similarity_scores.cosine_sim > 0.2)].shape[0]
+            crispr_negative = similarity_scores[(similarity_scores.Genetic_Perturbation == 'CRISPR') & (similarity_scores.cosine_sim < -0.2)].shape[0]
+
+            orf_targets = orf_positive + orf_negative
+            crispr_targets = crispr_positive + crispr_negative
+
+            orf_crispr_targets = orf_targets + crispr_targets
+
+            known_targets_from_jump = self.jump_tahoe_drug_metadata[self.jump_tahoe_drug_metadata.drug.isin([drug_name])]["target_list"].unique()
+            known_targets_output = f"The known targets from the JUMP dataset are: {', '.join(known_targets_from_jump.split('|'))}"
         except Exception as e:
             print(e)
             return "FAIL"
-            targets = []
-        return targets
+        return orf_crispr_targets, known_targets_output
     
     def get_ic50_prism(self, drug_name: str, cell_line_name: str):
         drug_name_lower = drug_name.strip().lower()
