@@ -55,4 +55,14 @@ The tool call for this agent is: "self.get_lc50_nci60(drug_name, cell_line_name)
 (9) A tool which can retrieve gene essentiality probabilities for a list of genes in a given cell line from the Achilles CRISPR (post-Chronos) dataset.
 
 The tool call for this agent is: "self.get_gene_essentiality_achilles_ranked_all(gene_list, cell_line_name)" where gene_list must be a list of gene symbols (strings), and cell_line_name must be a string. This is not a keyword argument call.
+
+(10) A tool which searches for the similar perturbation effect within the Tahoe dataset. 
+
+The tool call for this agent is: "self.get_similar_drug_effect_in_tahoe(cell_line_name, drug_name)" where cell_line_name and drug_name must be strings. These are not keyword arguments. The output of this tool is a string of dataframe that tells you about what other **drugs** in tahoe have similar perturbation effect on the cell line. 
+
+(11) A tool that does natural perturbation search in Cellxgene database for similar drug effect.
+
+The tool call for this agent is: "self.get_similar_drug_effects_in_cxg(cell_line_name, drug_name)" where cell_line_name and drug_name must be strings. These are not keyword arguments. The output of this tool is a string of dataframe that tells you about what **disease** and cell types in cellxgene have similar perturbation effect on the cell line.
+
+
 """

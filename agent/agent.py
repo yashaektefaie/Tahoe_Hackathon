@@ -54,6 +54,11 @@ class SigSpace(Basic_Agent):
             row["clean"].strip(): row["cell_line_name"]
             for _, row in self.lc50.iterrows()
         }
+        
+        # load the precomputed similarity scores for within-tahoe and cxg
+        tahoe_path = pathlib.Path("/home/ubuntu/kuan/data")
+        self.tahoe_similarity_score = pd.read_csv(tahoe_path / "in_tahoe_search_result_df.csv")
+        self.tahoe_cxg_similarity_score = pd.read_csv(tahoe_path / "cxg_search_result_df.csv")
 
     
     def initialize_conversation(self, message, conversation=None, history=None):
@@ -438,7 +443,69 @@ class SigSpace(Basic_Agent):
             "Driver_Mech_InferDM = inferred functional mechanism (LoF = loss-of-function, GoF = gain-of-function). "
             "Driver_GeneType_DM = classification of the driver gene as an Oncogene or Suppressor."
         )   
-
+      
+      
+              
+    def get_similar_drug_effect_in_tahoe(self, cell_line_name: str, drug_name: str):
+        """
+        Get similar effect drugs in tahoe based on the drug name and cell line name.
+        
+        Args:
+            cell_line_name (str): The name of the cell line.
+            drug_name (str): The name of the drug.
+        """
+        cell_line_names = self.tahoe_similarity_score["source_cell_line"].unique().tolist()
+        drug_names = self.tahoe_similarity_score["source_drug_name"].unique().tolist()
+        if cell_line_name not in cell_line_names:
+            return "FAIL: Cell line name not found in the dataset. A example: CVCL_0218"
+        if drug_name not in drug_names:
+            return "FAIL: Drug name not found in the dataset. A example: Daptomycin"
+        hits = self.tahoe_similarity_score[
+            (self.tahoe_similarity_score["source_cell_line"] == cell_line_name) &
+            (self.tahoe_similarity_score["source_drug_name"] == drug_name)
+        ]
+        # sort by distance
+        hits = hits.sort_values(by="distance", ascending=True).reset_index(drop=True)
+        hits = hits.head(10)
+        # keep target_drug_name and target_cell_line
+        hits = hits[["target_drug_name", "target_cell_line",]]
+        outputs = f"""
+        The following drugs have similar effects to the drug you provided:
+        hits: 
+        {hits}
+        """
+        return outputs
+    
+    def get_similar_drug_effects_in_cxg(self, cell_line_name: str, drug_name: str):
+        """
+        Get similar effect diseases in cxg based on the drug name and cell line name.
+        
+        Args:
+            cell_line_name (str): The name of the cell line.
+            drug_name (str): The name of the drug.
+        """
+        cell_line_names = self.tahoe_cxg_similarity_score["cell_line"].unique().tolist()
+        drug_names = self.tahoe_cxg_similarity_score["perturbation_drug_name"].unique().tolist()
+        if cell_line_name not in cell_line_names:
+            return "FAIL: Cell line name not found in the dataset. A valid example: CVCL_0218"
+        if drug_name not in drug_names:
+            return "FAIL: Drug name not found in the dataset. A valid example:: Daptomycin"
+        hits = self.tahoe_cxg_similarity_score[
+            (self.tahoe_cxg_similarity_score["cell_line"] == cell_line_name) &
+            (self.tahoe_cxg_similarity_score["perturbation_drug_name"] == drug_name)
+        ]
+        hits = hits.sort_values(by="distance", ascending=True).reset_index(drop=True)
+        hits = hits.head(10)
+        # keeps cell_type tissue_type and disease	
+        hits = hits[["cell_type", "tissue_type", "disease"]]
+        outputs = f"""
+        The following diseases have similar effects to the drug you provided:
+        hits: 
+        {hits}
+        """
+        return outputs
+        
+      
     def run_gradio_chat(self, message: str,
                     history: list,
                     temperature: float,
