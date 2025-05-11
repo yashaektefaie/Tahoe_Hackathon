@@ -76,7 +76,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 question_examples = [
-    ['Hello how are you?'],
+    ['Can you compare the IC50 values for the drug Abemaciclib in the cell line A549 and CHP-212?'],
 ]
 
 new_tool_files = {

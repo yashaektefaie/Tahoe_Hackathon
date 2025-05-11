@@ -38,33 +38,6 @@ class SigSpace(Basic_Agent):
             row["cell_name"].strip(): row["Cell_ID_DepMap"]
             for _, row in self.prism_tahoe_cell_meta.iterrows()
         }
-
-  
-    def call_agent(self, message:str):
-        print("\033[1;32;40mCalling Agent\033[0m")
-        self.conversation.append({"role": "user", "content": message})
-        response = self.llm_infer(self.conversation)
-        self.conversation.append({"role": "system", "content": response})
-        print("\033[92m" + response + "\033[0m")
-    
-    def run_multistep_agent(self, message: str,
-                            max_round: int = 20,
-                            ) -> str:
-
-        current_round = 0
-        while current_round < max_round:
-            current_round += 1
-            self.conversation.append({"role": "user", "content": message})
-            response = self.llm_infer(self.conversation)
-            self.conversation.append({"role": "system", "content": response})
-            print("\033[92m" + response + "\033[0m")
-            function_response = self.run_function(response)
-            self.conversation.append({"role": "system", "content": function_response})
-            import pdb; pdb.set_trace()
-            
-            # Check if the response contains a specific keyword or condition to break the loop
-            if "stop" in response.lower():
-                break
     
     def initialize_conversation(self, message, conversation=None, history=None):
         if conversation is None:
@@ -126,7 +99,7 @@ class SigSpace(Basic_Agent):
             if pd.isna(ic50_val):
                 print(f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id}).")
                 return f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id})."
-            return ic50_val
+            return float(ic50_val)
         except KeyError as e:
             print(f"Combination not found: {e}")
             return None
@@ -153,11 +126,6 @@ class SigSpace(Basic_Agent):
         outputs = []
         outputs_str = ''
         last_outputs = []
-
-        # picked_tools_prompt, call_agent_level = self.initialize_tools_prompt(
-        #     call_agent,
-        #     call_agent_level,
-        #     message)
 
         conversation = self.initialize_conversation(
             message,
@@ -189,7 +157,7 @@ class SigSpace(Basic_Agent):
             if 'Tool-call:' in response:
                 match = re.search(r"Tool-call:\s*(.*)", response, re.DOTALL)
                 response_text = match.group(1).strip()
-                if "None" not in response_text:   
+                if "None" not in response_text and response_text.replace('-', '').rstrip().replace('FINISHED', '').rstrip():   
                     history.append(ChatMessage(
                         role="assistant", content=f"{response.replace('FINISHED', '')}"))
                     yield history 
@@ -203,16 +171,30 @@ class SigSpace(Basic_Agent):
                         )
                         next_round = False
                         yield history 
-                    else:                        
-                        tool_response = eval(response_text.replace('\n', '').replace('-', '').replace('FINISHED', ''))
-                        self.conversation.append({"role": "system", "content": tool_response})
-                        history.append(
-                            ChatMessage(role="assistant", content=f"Response from tool: {tool_response}")
-                        )
-                        history.append(
-                            ChatMessage(role="assistant", content=f"Sorry one of the tool calls failed so I am unable to answer your query")
-                        )
-                        yield history
+                    else:        
+                        tool_call_text = response_text
+                        if ';' in tool_call_text:
+                            tool_calls = [i.replace('\n', '').rstrip('-').replace('FINISHED', '') for i in tool_call_text.split(';')]
+                        elif '\n' in tool_call_text:
+                            tool_calls = [i.replace('\n', '').rstrip('-').replace('FINISHED', '') for i in tool_call_text.split('\n')]
+                        else:
+                            tool_calls = [tool_call_text]
+                    
+                        for call in tool_calls:
+                            print(f"Calling this command now {call}")
+                            tool_response = str(eval(call))
+                            self.conversation.append({"role": "system", "content": tool_response})
+                            history.append(
+                                ChatMessage(role="assistant", content=f"Response from tool: {tool_response}")
+                            )
+                            print(f"Got this response {tool_response}")
+                            yield history
+                else:
+                    history.append(
+                                ChatMessage(role="assistant", content=f"{response}")
+                            )
+                    yield history
+
             elif 'Response:' in response or tool_called is False:
                 match = re.search(r"Response:\s*(.*)", response, re.DOTALL)
                 response_text = match.group(1).strip().replace('Tool-call: None', '')
