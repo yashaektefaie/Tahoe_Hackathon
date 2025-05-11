@@ -104,7 +104,7 @@ class SigSpace(Basic_Agent):
 
             # Count ORF entries with cosine_similarity > 0.2 and < -0.2
             orf_positive = similarity_scores[(similarity_scores.Genetic_Perturbation == 'ORF') & (similarity_scores.cosine_sim > 0.2)].shape[0]
-            orf_negative = similarity_scores[(filtered_df.Genetic_Perturbation == 'ORF') & (similarity_scores.cosine_sim < -0.2)].shape[0]
+            orf_negative = similarity_scores[(similarity_scores.Genetic_Perturbation == 'ORF') & (similarity_scores.cosine_sim < -0.2)].shape[0]
 
             # Count CRISPR entries with cosine_similarity > 0.2 and < -0.2
             crispr_positive = similarity_scores[(similarity_scores.Genetic_Perturbation == 'CRISPR') & (similarity_scores.cosine_sim > 0.2)].shape[0]
@@ -115,7 +115,7 @@ class SigSpace(Basic_Agent):
 
             orf_crispr_targets = orf_targets + crispr_targets
 
-            known_targets_from_jump = self.jump_tahoe_drug_metadata[self.jump_tahoe_drug_metadata.drug.isin([drug_name])]["target_list"].unique()
+            known_targets_from_jump = self.jump_tahoe_drug_metadata[self.jump_tahoe_drug_metadata.drug.isin([drug_name])]["target_list"].tolist()
             known_targets_output = f"The known targets from the JUMP dataset are: {', '.join(known_targets_from_jump.split('|'))}"
         except Exception as e:
             print(e)
