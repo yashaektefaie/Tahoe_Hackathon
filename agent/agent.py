@@ -17,29 +17,30 @@ class SigSpace(Basic_Agent):
         self.conversation.append({"role": "system", "content": self.system_prompt})
         
         # initialize data for jump
-        jump_path = pathlib.Path("/home/ubuntu/giovanni/data")
-        self.jump_tahoe_drug_metadata = pd.read_csv(jump_path/"drug_metadata_inchikey.csv")
-        self.jump_similarity_score = pd.read_csv(jump_path/"compound_genetic_perturbation_cosine_similarity_inchikey.csv")
+        path = pathlib.Path("/home/ubuntu/giovanni/code/Tahoe_Hackathon/datasets")
+        # jump_path = pathlib.Path("/home/ubuntu/giovanni/data")
+        self.jump_tahoe_drug_metadata = pd.read_csv(path/"drug_metadata_inchikey.csv")
+        self.jump_similarity_score = pd.read_csv(path/"compound_genetic_perturbation_cosine_similarity_inchikey.csv")
         
         # Load PRISM IC50 matrix
-        prism_data_path = pathlib.Path("/home/ubuntu/sid/Hackathon_Tahoe/data")
-        self.ic50 = pd.read_csv(prism_data_path / "Tahoe_PRISM_cell_by_drug_ic50_matrix_named.csv", index_col=0)
+        # prism_data_path = pathlib.Path("/home/ubuntu/sid/Hackathon_Tahoe/data")
+        self.ic50 = pd.read_csv(path / "Tahoe_PRISM_cell_by_drug_ic50_matrix_named.csv", index_col=0)
         self.ic50.columns = self.ic50.columns.str.lower()
 
-        nci60_path = pathlib.Path("/home/ubuntu/ishita/tahoe/")
-        self.lc50 = pd.read_csv(nci60_path / "filtered_results.csv")
+        # nci60_path = pathlib.Path("/home/ubuntu/ishita/tahoe/")
+        self.lc50 = pd.read_csv(path / "filtered_results.csv")
         # Filter out rows where CELL is nan
         self.lc50 = self.lc50[self.lc50['CELL'].notna()]
 
         # Load full Tahoe metadata
-        tahoe_path = pathlib.Path("/home/ubuntu/rohit/data")
-        self.tahoe_cell_meta = pd.read_csv(tahoe_path / "cell_line_metadata.csv")
-        self.tahoe_drug_meta = pd.read_csv(tahoe_path / "drug_metadata.csv")
-        self.tahoe_vision_scores = anndata.read_h5ad(tahoe_path / "tahoe_vision_scores.h5ad")
+        # tahoe_path = pathlib.Path("/home/ubuntu/rohit/data")
+        self.tahoe_cell_meta = pd.read_csv(path / "cell_line_metadata.csv")
+        self.tahoe_drug_meta = pd.read_csv(path / "drug_metadata.csv")
+        self.tahoe_vision_scores = anndata.read_h5ad(path / "tahoe_vision_scores.h5ad")
         
         # Load PRISM subset of Tahoe metadata
-        self.prism_tahoe_cell_meta = pd.read_csv(prism_data_path / "Tahoe_PRISM_matched_cell_metadata_final.csv")
-        self.prism_tahoe_drug_meta = pd.read_csv(prism_data_path / "Tahoe_PRISM_matched_drug_metadata_final.csv")
+        self.prism_tahoe_cell_meta = pd.read_csv(path / "Tahoe_PRISM_matched_cell_metadata_final.csv")
+        self.prism_tahoe_drug_meta = pd.read_csv(path / "Tahoe_PRISM_matched_drug_metadata_final.csv")
 
         # Build cell line common name to depmap_id map (strip whitespace and case)
         self.cell_name_to_depmap = {
