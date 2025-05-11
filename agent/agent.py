@@ -15,7 +15,6 @@ class SigSpace(Basic_Agent):
         self.system_prompt = Agent_Prompt
         self.conversation = []
         self.conversation.append({"role": "system", "content": self.system_prompt})
-        print("\033[1;32;40mAgent_Initialized\033[0m")
         
         # initialize data for jump
         jump_path = pathlib.Path("/home/ubuntu/giovanni/data")
@@ -42,6 +41,7 @@ class SigSpace(Basic_Agent):
             row["cell_name"].strip(): row["Cell_ID_DepMap"]
             for _, row in self.prism_tahoe_cell_meta.iterrows()
         }
+
     
     def initialize_conversation(self, message, conversation=None, history=None):
         if conversation is None:
@@ -75,15 +75,49 @@ class SigSpace(Basic_Agent):
         return 'Parkinsons Disease'
 
     def get_validated_target_jump(self, drug_name):
+        print(drug_name)
         try:
             inchikey = self.jump_tahoe_drug_metadata[self.jump_tahoe_drug_metadata.drug.isin([drug_name])]["InChIKey"].values[0]
-            targets = self.jump_similarity_score[self.jump_similarity_score.InChIKey.isin([inchikey])]["Metadata_matching_target"].unique()
-            targets = targets.tolist()
+            similarity_scores = self.jump_similarity_score[self.jump_similarity_score.InChIKey.isin([inchikey])]
+
+            # Count ORF entries with cosine_similarity > 0.2 and < -0.2
+            orf_positive = similarity_scores[(similarity_scores.Genetic_Perturbation == 'ORF') & (similarity_scores.cosine_sim > 0.2)].shape[0]
+            orf_negative = similarity_scores[(similarity_scores.Genetic_Perturbation == 'ORF') & (similarity_scores.cosine_sim < -0.2)].shape[0]
+
+            # Count CRISPR entries with cosine_similarity > 0.2 and < -0.2
+            crispr_positive = similarity_scores[(similarity_scores.Genetic_Perturbation == 'CRISPR') & (similarity_scores.cosine_sim > 0.2)].shape[0]
+            crispr_negative = similarity_scores[(similarity_scores.Genetic_Perturbation == 'CRISPR') & (similarity_scores.cosine_sim < -0.2)].shape[0]
+
+            orf_targets = f"ORF: {orf_positive} positive correlations (>0.2), {orf_negative} negative correlations (<-0.2)"
+            crispr_targets = f"CRISPR: {crispr_positive} positive correlations (>0.2), {crispr_negative} negative correlations (<-0.2)"
+
+            orf_crispr_targets = orf_targets + " " +crispr_targets
+
+            known_targets_from_jump = self.jump_tahoe_drug_metadata[self.jump_tahoe_drug_metadata.drug.isin([drug_name])]["target_list"].values[0]
+            known_targets_output = f"The known targets from the JUMP dataset are: {', '.join(known_targets_from_jump.split('|'))}"
         except Exception as e:
             print(e)
-            return "FAIL"
-            targets = []
-        return targets
+            return "For the drug {drug_name}, we were not able to find the target in the JUMP dataset."
+        
+        orf_crispr_targets = \
+        f"""
+        Preturbation description:
+
+        ORF: The ORF perturbation consists of an overexpression of the target gene.
+        CRISPR: The CRISPR perturbation consists of a knockout of the target gene.
+
+        Considering the drug "{drug_name}", we expect positive correlations with shared CRISPR targets, 
+        and negative correlations with shared ORF targets.
+        
+        But, the measured correlations are:
+
+        {orf_crispr_targets}
+
+        Furthermore, the JUMP dataset has the following known targets for the drug "{drug_name}":
+
+        {known_targets_output}
+        """ 
+        return orf_crispr_targets
     
     def get_ic50_prism(self, drug_name: str, cell_line_name: str):
         drug_name_lower = drug_name.strip().lower()
