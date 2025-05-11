@@ -86,10 +86,10 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 question_examples = [
     # ['What is the IC50 values for the drug Abemaciclib in the cell line A549?'],
-    ["What's the MoA of the drug Ponatinib on the HCT15 colon cancer cell line? Please synthesize results from the Tahoe-100M dataset, the jump dataset, and the IC50 dataset."],
-    ["Natural perturbation: find the disease perturbation that has the similar effect to Glycyrrhizic acid on CVCL_0334? use the result and what you know to explain the mechanism of action."],
-    ["Mechanism of action: give me the mechanism of action for drug name Abemaciclib provided by Tahoe."],
-    ["Vision scores: what are the top 5 vision scores for cell line A549 and drug name Abemaciclib"]
+    ["What's the MoA of the drug 'Ponatinib' on the 'HCT15' colon cancer cell line? Please synthesize results from the Tahoe-100M dataset, the jump dataset, and the IC50 dataset."],
+    ["Natural perturbation: find the disease perturbation that has the similar effect to 'Glycyrrhizic acid' on 'CVCL_0334'? use the result and what you know to explain the mechanism of action."],
+    ["Mechanism of action: give me the mechanism of action for drug name 'Abemaciclib' provided by Tahoe."],
+    ["Vision scores: what are the top 5 vision scores for cell line 'A549' and drug name 'Abemaciclib'"]
 ]
 
 new_tool_files = {
