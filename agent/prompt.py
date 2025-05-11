@@ -30,6 +30,6 @@ The tool call for this agent is: "self.get_validated_target_jump(drug_name)" whe
 
 (3) A tool which can retrieve an IC50 value for a drug and cell line from the PRISM Repurposing 20Q2 dataset.
 
-The tool call for this agent is: "self.get_ic50_prism(drug_name, cell_line)" where drug_name and cell_line must be strings. The output of this tool is scalar IC50 floating point value.
+The tool call for this agent is: "self.get_ic50_prism(drug_name, cell_line)" where drug_name and cell_line must be strings. The output of this tool is scalar IC50 floating point value. These are not keyword arguments.
 
 """

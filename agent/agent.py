@@ -93,6 +93,8 @@ class SigSpace(Basic_Agent):
         return conversation
 
     def get_similar_disease(self, disease_name, k_value):
+        if disease_name != "Alzheimer's":
+            return "FAIL"
         return 'Parkinsons Disease'
 
     def get_validated_target_jump(self, drug_name):
@@ -102,6 +104,7 @@ class SigSpace(Basic_Agent):
             targets = targets.tolist()
         except Exception as e:
             print(e)
+            return "FAIL"
             targets = []
         return targets
     
@@ -111,18 +114,18 @@ class SigSpace(Basic_Agent):
 
         if cell_line_key not in self.cell_name_to_depmap:
             print(f"Cell line name '{cell_line_key}' not found for PRISM data")
-            return None
+            return f"FAIL: Cell line name '{cell_line_key}' not found for PRISM data"
         depmap_id = self.cell_name_to_depmap[cell_line_key]
 
         if drug_name_lower not in self.ic50.columns:
             print(f"Drug name '{drug_name}' not found in IC50 matrix columns.")
-            return None
+            return f"FAIL: Drug name '{drug_name}' not found in IC50 matrix columns."
 
         try:
             ic50_val = self.ic50.loc[depmap_id, drug_name_lower]
             if pd.isna(ic50_val):
-                print(f"IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id}).")
-                return None
+                print(f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id}).")
+                return f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id})."
             return ic50_val
         except KeyError as e:
             print(f"Combination not found: {e}")
@@ -193,12 +196,23 @@ class SigSpace(Basic_Agent):
                     
                     tool_called = True
                     print(response_text)
-                    tool_response = eval(response_text.replace('\n', '').replace('-', '').replace('FINISHED', ''))
-                    self.conversation.append({"role": "system", "content": tool_response})
-                    history.append(
-                        ChatMessage(role="assistant", content=f"Response from tool: {tool_response}")
-                    )
-                    yield history
+                    if "FAIL" in response_text:
+                        self.conversation.append({"role": "system", "content": tool_response})
+                        history.append(
+                            ChatMessage(role="assistant", content=f"Response from tool FAILED ")
+                        )
+                        next_round = False
+                        yield history 
+                    else:                        
+                        tool_response = eval(response_text.replace('\n', '').replace('-', '').replace('FINISHED', ''))
+                        self.conversation.append({"role": "system", "content": tool_response})
+                        history.append(
+                            ChatMessage(role="assistant", content=f"Response from tool: {tool_response}")
+                        )
+                        history.append(
+                            ChatMessage(role="assistant", content=f"Sorry one of the tool calls failed so I am unable to answer your query")
+                        )
+                        yield history
             elif 'Response:' in response or tool_called is False:
                 match = re.search(r"Response:\s*(.*)", response, re.DOTALL)
                 response_text = match.group(1).strip().replace('Tool-call: None', '')
