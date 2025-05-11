@@ -5,6 +5,7 @@ from agent.agent import SigSpace
 import spaces
 import gradio as gr
 import os
+from PIL import Image
 
 import os
 
@@ -18,10 +19,17 @@ os.environ["MKL_THREADING_LAYER"] = "GNU"
 HF_TOKEN = os.environ.get("HF_TOKEN", None)
 
 
-DESCRIPTION = '''
+# Create the image path - use absolute path for reliability
+img_path = os.path.join(current_dir, 'img', 'SigSpace.png')
+
+def display_image(image_path):
+    # Load and return the image
+    img = Image.open(image_path)
+    return img
+
+DESCRIPTION = f'''
 <div style="text-align: center;">
-  <img src="img/SigSpace.png" alt="SigSpace Logo" style="max-width: 300px; margin-bottom: 20px;" />
-  <h1>An AI Agent for Tahoe-100M</h1>
+  <h1 style="font-size: 32px; margin-bottom: 10px;">SigSpace: An AI Agent for Tahoe-100M</h1>
 </div>
 '''
 INTRO = """
@@ -144,12 +152,13 @@ def check_password(input_password):
 conversation_state = gr.State([])
 
 # Gradio block
-chatbot = gr.Chatbot(height=800, placeholder=PLACEHOLDER,
+chatbot = gr.Chatbot(height=400, placeholder=PLACEHOLDER,
                      label='TxAgent', type="messages",  show_copy_button=True)
 
 with gr.Blocks(css=css) as demo:
     gr.Markdown(DESCRIPTION)
-    gr.Markdown(INTRO)
+    # gr.Markdown(INTRO)
+    gr.Image(value=display_image(img_path), label="", show_label=False, height=600, width=600)
     default_temperature = 0.3
     default_max_new_tokens = 1024
     default_max_tokens = 81920
@@ -164,7 +173,7 @@ with gr.Blocks(css=css) as demo:
     gr.ChatInterface(
         fn=agent.run_gradio_chat,
         chatbot=chatbot,
-        fill_height=True, fill_width=True, stop_btn=True,
+        fill_height=False, fill_width=False, stop_btn=True,
         additional_inputs_accordion=gr.Accordion(
             label="⚙️ Inference Parameters", open=False, render=False),
         additional_inputs=[
