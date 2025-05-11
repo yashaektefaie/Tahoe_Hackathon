@@ -198,10 +198,17 @@ class SigSpace(Basic_Agent):
         lconc_val = matching_row.iloc[0]['LCONC']
 
         if pd.isna(lc50_val):
-            print(f"LC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id}).")
-            return None
-
-        return str(lc50_val), str(lconc_val)
+            return "LC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id})."
+        
+        lc50_output = \
+        f"""
+        The LC50 value of {lc50_val} represents -log10(LC50), the negative base-10 logarithm of the molar concentration that inhibits 50% of cell growth. 
+        Higher LC50 values therefore indicate greater drug potency. 
+        The LCONC value of {lconc_val} denotes the maximum log10 molar concentration tested in the dilution series—for example, LCONC = -4 corresponds to 10^-4 M. 
+        Both metrics come from the NCI-60 drug screen, which applies a standardized 48-hour exposure assay across all compound–cell-line pairs."
+        """
+        
+        return lc50_output
     
     def rank_vision_scores(self, drug_name: str, cell_line_name: str, k_value: int):
         self.tahoe_vision_scores.X = (self.tahoe_vision_scores.X - np.mean(self.tahoe_vision_scores.X, axis = 0)) / np.std(self.tahoe_vision_scores.X, axis = 0)
