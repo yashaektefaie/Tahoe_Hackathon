@@ -129,6 +129,29 @@ class SigSpace(Basic_Agent):
         """ 
         return orf_crispr_targets
     
+    # def get_ic50_prism(self, drug_name: str, cell_line_name: str):
+    #     drug_name_lower = drug_name.strip().lower()
+    #     cell_line_key = cell_line_name.strip()
+
+    #     if cell_line_key not in self.cell_name_to_depmap:
+    #         print(f"Cell line name '{cell_line_key}' not found for PRISM data")
+    #         return f"FAIL: Cell line name '{cell_line_key}' not found for PRISM data"
+    #     depmap_id = self.cell_name_to_depmap[cell_line_key]
+
+    #     if drug_name_lower not in self.ic50.columns:
+    #         print(f"Drug name '{drug_name}' not found in IC50 matrix columns.")
+    #         return f"FAIL: Drug name '{drug_name}' not found in IC50 matrix columns."
+
+    #     try:
+    #         ic50_val = self.ic50.loc[depmap_id, drug_name_lower]
+    #         if pd.isna(ic50_val):
+    #             print(f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id}).")
+    #             return f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id})."
+    #         return float(ic50_val)
+    #     except KeyError as e:
+    #         print(f"Combination not found: {e}")
+    #         return None
+
     def get_ic50_prism(self, drug_name: str, cell_line_name: str):
         drug_name_lower = drug_name.strip().lower()
         cell_line_key = cell_line_name.strip()
@@ -136,6 +159,7 @@ class SigSpace(Basic_Agent):
         if cell_line_key not in self.cell_name_to_depmap:
             print(f"Cell line name '{cell_line_key}' not found for PRISM data")
             return f"FAIL: Cell line name '{cell_line_key}' not found for PRISM data"
+
         depmap_id = self.cell_name_to_depmap[cell_line_key]
 
         if drug_name_lower not in self.ic50.columns:
@@ -145,13 +169,24 @@ class SigSpace(Basic_Agent):
         try:
             ic50_val = self.ic50.loc[depmap_id, drug_name_lower]
             if pd.isna(ic50_val):
-                print(f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id}).")
-                return f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id})."
-            return float(ic50_val)
-        except KeyError as e:
-            print(f"Combination not found: {e}")
-            return None
-    
+                print(f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (DepMap ID: {depmap_id}).")
+                return f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (DepMap ID: {depmap_id})."
+
+            return (
+                f"The IC50 value of {ic50_val:.4f} corresponds to the log10-transformed micromolar concentration "
+                f"at which {drug_name} inhibits 50% of viability in the {cell_line_name} cell line "
+                f"(DepMap ID: {depmap_id}).\n\n"
+                "This value comes from the PRISM Repurposing Secondary Screen, which exposes pooled barcoded cell lines "
+                "to drug treatment for 5 days and infers viability from barcode abundance using sequencing.\n\n"
+                "The secondary screen includes higher-confidence compound–cell line pairs with improved replicability "
+                "compared to the primary screen.\n\n"
+                "Lower IC50 values indicate greater sensitivity of the cell line to the drug."
+            )
+
+    except KeyError as e:
+        print(f"Combination not found: {e}")
+        return None
+
     def clean_cell_line_name(self, name):
         """
         Standardize cell line names for comparison by:
