@@ -41,6 +41,9 @@ class SigSpace(Basic_Agent):
         self.prism_tahoe_cell_meta = pd.read_csv(prism_data_path / "Tahoe_PRISM_matched_cell_metadata_final.csv")
         self.prism_tahoe_drug_meta = pd.read_csv(prism_data_path / "Tahoe_PRISM_matched_drug_metadata_final.csv")
 
+        # Load Achilles gene essentiality data
+        self.crispr_dependency = pd.read_csv("/home/ubuntu/sid/Hackathon_Tahoe/data/CRISPRGeneDependency.csv",index_col=0)
+
         # Build cell line common name to depmap_id map (strip whitespace and case)
         self.cell_name_to_depmap = {
             row["cell_name"].strip(): row["Cell_ID_DepMap"]
@@ -133,7 +136,7 @@ class SigSpace(Basic_Agent):
         {known_targets_output}
         """ 
         return orf_crispr_targets
-    
+
     def get_ic50_prism(self, drug_name: str, cell_line_name: str):
         drug_name_lower = drug_name.strip().lower()
         cell_line_key = cell_line_name.strip()
@@ -141,6 +144,7 @@ class SigSpace(Basic_Agent):
         if cell_line_key not in self.cell_name_to_depmap:
             print(f"Cell line name '{cell_line_key}' not found for PRISM data")
             return f"FAIL: Cell line name '{cell_line_key}' not found for PRISM data"
+
         depmap_id = self.cell_name_to_depmap[cell_line_key]
 
         if drug_name_lower not in self.ic50.columns:
@@ -150,13 +154,86 @@ class SigSpace(Basic_Agent):
         try:
             ic50_val = self.ic50.loc[depmap_id, drug_name_lower]
             if pd.isna(ic50_val):
-                print(f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id}).")
-                return f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id})."
-            return float(ic50_val)
+                print(f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (DepMap ID: {depmap_id}).")
+                return f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (DepMap ID: {depmap_id})."
+
+            return (
+                f"The IC50 value of {ic50_val:.4f} corresponds to the log10-transformed micromolar concentration "
+                f"at which {drug_name} inhibits 50% of viability in the {cell_line_name} cell line "
+                f"(DepMap ID: {depmap_id}).\n\n"
+                "This value comes from the PRISM Repurposing Secondary Screen, which exposes pooled barcoded cell lines "
+                "to drug treatment for 5 days and infers viability from barcode abundance using sequencing.\n\n"
+                "The secondary screen includes higher-confidence compound–cell line pairs with improved replicability "
+                "compared to the primary screen.\n\n"
+                "Lower IC50 values indicate greater sensitivity of the cell line to the drug."
+            )
         except KeyError as e:
             print(f"Combination not found: {e}")
             return None
-    
+
+    def get_gene_essentiality_achilles_ranked_all(self, gene_list: list, cell_line_name: str):
+        cell_line_key = cell_line_name.strip()
+
+        if cell_line_key not in self.cell_name_to_depmap:
+            print(f"Cell line name '{cell_line_key}' not found in dependency mapping.")
+            return f"FAIL: Cell line name '{cell_line_key}' not found in dependency mapping."
+
+        depmap_id = self.cell_name_to_depmap[cell_line_key]
+
+        if depmap_id not in self.crispr_dependency.index:
+            print(f"DepMap ID '{depmap_id}' not found in CRISPR dependency dataset.")
+            return f"FAIL: DepMap ID '{depmap_id}' not found in CRISPR dependency dataset."
+
+        gene_scores = {}
+        not_found = []
+
+        for gene_name in gene_list:
+            gene_clean = gene_name.strip()
+            if gene_clean not in self.gene_to_full_column:
+                not_found.append(gene_clean)
+                continue
+
+            gene_col = self.gene_to_full_column[gene_clean]
+
+            try:
+                prob_score = self.crispr_dependency.loc[depmap_id, gene_col]
+                if not pd.isna(prob_score):
+                    gene_scores[gene_clean] = float(prob_score)
+            except Exception:
+                continue
+
+        if not gene_scores:
+            return "No valid dependency scores were found for this cell line and gene list."
+
+        # Sort all found genes by descending essentiality
+        sorted_genes = sorted(gene_scores.items(), key=lambda x: -x[1])
+
+        header = (
+            f"Gene essentiality scores for the {cell_line_name} cell line (DepMap ID: {depmap_id}):\n\n"
+            "These scores are derived from the Achilles CRISPR-Cas9 knockout screen (post-Chronos), estimating the "
+            "probability that disrupting a gene impairs cell viability.\n\n"
+            "Higher values indicate stronger essentiality:\n"
+            "- 1.0 = highly likely essential\n"
+            "- 0.5 = possible essentiality threshold\n"
+            "- 0.0 = likely non-essential\n\n"
+            "Ranked gene dependency scores:\n"
+        )
+
+        lines = []
+        for i, (gene, score) in enumerate(sorted_genes, 1):
+            if score >= 0.75:
+                label = "strongly essential"
+            elif score >= 0.5:
+                label = "possibly essential"
+            else:
+                label = "likely non-essential"
+            lines.append(f"{i}. {gene}: {score:.3f} ({label})")
+
+        if not_found:
+            lines.append(f"\nNote: The following gene(s) were not found and were skipped: {', '.join(not_found)}.")
+
+        return header + "\n" + "\n".join(lines)
+
     def clean_cell_line_name(self, name):
         """
         Standardize cell line names for comparison by:
@@ -212,71 +289,163 @@ class SigSpace(Basic_Agent):
         Higher LC50 values therefore indicate greater drug potency. 
 
         The LCONC value of {lconc_val} denotes the maximum log10 molar concentration tested in the dilution series—for example, LCONC = -4 corresponds to 10^-4 M. 
-        
+
         Both metrics come from the NCI-60 drug screen, which applies a standardized 48-hour exposure assay across all compound–cell-line pairs."
         """
         
         return lc50_output
     
+    def load_gene_sets_file(self, file_path):
+        """
+        Load gene sets from a tab-delimited file where the first column is the gene set name
+        and the remaining columns are gene symbols.
+        
+        Parameters:
+        -----------
+        file_path : str
+            Path to the gene sets file
+            
+        Returns:
+        --------
+        dict
+            Dictionary mapping gene set names to lists of genes
+        """
+        gene_sets = {}
+        with open(file_path, 'r') as file:
+            for line in file:
+                parts = line.strip().split('\t')
+                if parts:
+                    set_name = parts[0]
+                    genes = [gene for gene in parts[1:] if gene]  # Filter out empty strings
+                    gene_sets[set_name] = genes
+        return gene_sets
+
+    def get_genes_for_set(self, set_name):
+        """
+        Get the list of genes for a specific gene set.
+        
+        Parameters:
+        -----------
+        set_name : str
+            Name of the gene set to query
+            
+        Returns:
+        --------
+        list
+            List of genes in the gene set, or empty list if set not found
+        """
+        if not hasattr(self, 'gene_sets'):
+            # Load the gene sets file if it hasn't been loaded yet
+            self.gene_sets = self.load_gene_sets_file('/home/ubuntu/ishita/msigdb_all_sigs_human_symbols.txt')
+        
+        return self.gene_sets.get(set_name, [])
+            
     def rank_vision_scores(self, drug_name: str, cell_line_name: str, k_value: int):
         self.tahoe_vision_scores.X = (self.tahoe_vision_scores.X - np.mean(self.tahoe_vision_scores.X, axis = 0)) / np.std(self.tahoe_vision_scores.X, axis = 0)
 
-        filtered_scores = self.tahoe_vision_scores[
-            (self.tahoe_vision_scores.obs["Cell_Name_Vevo"] == cell_line_name) & 
-            (self.tahoe_vision_scores.obs["drug"] == drug_name)
+        # subset to the drug / cell line at the highest tested concentration
+        filt = (
+            (self.tahoe_vision_scores.obs["Cell_Name_Vevo"] == cell_line_name)
+            & (self.tahoe_vision_scores.obs["drug"] == drug_name)
+        )
+        filtered_scores = self.tahoe_vision_scores[filt]
+        if filtered_scores.n_obs == 0:
+            return "VISION scores not found for this drug–cell-line combination."
+
+        filtered_scores = filtered_scores[
+            filtered_scores.obs["concentration"] == filtered_scores.obs["concentration"].max()
         ]
 
-        filtered_scores = filtered_scores[filtered_scores.obs["concentration"] == filtered_scores.obs["concentration"].max()]
+        # pick top-|score| gene sets
+        top_idx = np.argsort(-np.abs(filtered_scores.X[0]))[:k_value]
+        gene_sets = filtered_scores.var.index[top_idx].tolist()
+        scores    = filtered_scores.X[0, top_idx].tolist()
 
-        sorted_indices = np.argsort(-np.abs(filtered_scores.X[0]))[:k_value]
-        filtered_scores = filtered_scores[:, sorted_indices]
-        
-        gene_set_names = filtered_scores.var.index.tolist()
-        vision_values = [str(value) for value in filtered_scores.X[0].tolist()]
+        # build the narrative
+        header = (
+            "VISION scores are single-cell gene-set enrichment values computed by the "
+            "VISION algorithm (DeTomaso & Yosef 2021). Positive scores indicate relative "
+            "up-regulation of the gene set in the queried condition; negative scores indicate "
+            "down-regulation.\n"
+        )
+        lines = []
+        for gs, val in zip(gene_sets, scores):
+            gs_name = gs.replace("gs_", "")
+            genes = self.get_genes_for_set(gs_name)
+            direction = "up-regulated" if val > 0 else "down-regulated" if val < 0 else "not changed"
+            lines.append(f"{gs} has gene set {genes} : {direction} (VISION score = {val:.3f})")
 
-        return list(zip(gene_set_names, vision_values))
+        return header + "\n".join(lines)
     
     def obtain_moa(self, drug_name: str):
         row = self.tahoe_drug_meta[self.tahoe_drug_meta["drug"] == drug_name]
 
         if row.empty:
-            return None
-        return {
-            "moa-broad": row["moa-broad"].values[0],
-            "moa-fine": row["moa-fine"].values[0]
-        }
+            return "MOA annotation not found for this drug."
+        
+        moa_broad = row["moa-broad"].values[0]
+        moa_fine  = row["moa-fine"].values[0]
+
+        return (
+            f"Broad MOA: {moa_broad}; "
+            f"Fine MOA: {moa_fine}. "
+            "Fine-grained mechanism of action (MOA) annotation for the drug, "
+            "specifying the biological process or molecular target affected. "
+            "Derived from MedChemExpress and curated with GPT-based annotations."
+        )
 
     def obtain_gene_targets(self, drug_name: str):
         row = self.tahoe_drug_meta[self.tahoe_drug_meta["drug"] == drug_name]
         if row.empty:
-            return None
+            return "Gene targets not found for this drug."
         
         targets = row["targets"].values[0]
 
+        # Convert a stringified list/dict to a Python object, if necessary.
         if isinstance(targets, str):
             try:
                 targets = eval(targets)
-            except:
+            except Exception:  # fall back to treating it as a single ID
                 targets = [targets]
 
-        return targets
+        return (
+            f"Gene target token IDs: {targets}. "
+            "Gene identifiers (integer token IDs) corresponding to each gene with non-zero expression in the cell."
+        )
 
     def obtain_cell_line_data(self, cell_line_name: str):
         row = self.tahoe_cell_meta[self.tahoe_cell_meta["cell_name"] == cell_line_name]
 
         if row.empty:
-            return None
+            return "Cell-line metadata not found for this cell line."
         
-        return {
-            "organ": row["Organ"].values[0],
-            "driver_gene_symbol": row["Driver_Gene_Symbol"],
-            "driver_varzyg": row["Driver_VarZyg"].values[0],
-            "driver_vartype": row["Driver_VarType"].values[0],
-            "driver_proteffect_cdnaeffect": row["Driver_ProtEffect_or_CdnaEffect"].values[0],
-            "driver_mech_inferdm": row["Driver_Mech_InferDM"].values[0],
-            "driver_genetype_dm": row["Driver_GeneType_DM"].values[0]
-        }   
-        
+        organ                 = row["Organ"].values[0]
+        driver_gene_symbol    = row["Driver_Gene_Symbol"].values[0]
+        driver_varzyg         = row["Driver_VarZyg"].values[0]
+        driver_vartype        = row["Driver_VarType"].values[0]
+        driver_proteffect     = row["Driver_ProtEffect_or_CdnaEffect"].values[0]
+        driver_mech_inferdm   = row["Driver_Mech_InferDM"].values[0]
+        driver_genetype_dm    = row["Driver_GeneType_DM"].values[0]
+
+        return (
+            f"Organ: {organ}; "
+            f"Driver_Gene_Symbol: {driver_gene_symbol}; "
+            f"Driver_VarZyg: {driver_varzyg}; "
+            f"Driver_VarType: {driver_vartype}; "
+            f"Driver_ProtEffect_or_CdnaEffect: {driver_proteffect}; "
+            f"Driver_Mech_InferDM: {driver_mech_inferdm}; "
+            f"Driver_GeneType_DM: {driver_genetype_dm}. "
+            "Organ = tissue or organ of origin for the cell line (e.g., Lung), used to interpret lineage-specific responses. "
+            "Driver_Gene_Symbol = HGNC-approved symbol of a driver gene with functional alterations in this cell line. "
+            "Driver_VarZyg = zygosity of the driver variant (Hom = homozygous, Het = heterozygous). "
+            "Driver_VarType = type of genetic alteration (e.g., Missense, Frameshift, Stopgain). "
+            "Driver_ProtEffect_or_CdnaEffect = precise protein or cDNA-level annotation of the mutation (e.g., p.G12S). "
+            "Driver_Mech_InferDM = inferred functional mechanism (LoF = loss-of-function, GoF = gain-of-function). "
+            "Driver_GeneType_DM = classification of the driver gene as an Oncogene or Suppressor."
+        )   
+      
+      
+              
     def get_similar_drug_effect_in_tahoe(self, cell_line_name: str, drug_name: str):
         """
         Get similar effect drugs in tahoe based on the drug name and cell line name.
@@ -336,7 +505,7 @@ class SigSpace(Basic_Agent):
         """
         return outputs
         
-
+      
     def run_gradio_chat(self, message: str,
                     history: list,
                     temperature: float,
@@ -386,13 +555,14 @@ class SigSpace(Basic_Agent):
             self.conversation.append({"role": "system", "content": response})
             tool_called = False 
             print(response)
+            # import pdb; pdb.set_trace()
 
             if 'Tool-call:' in response:
                 match = re.search(r"Tool-call:\s*(.*)", response, re.DOTALL)
                 response_text = match.group(1).strip()
                 if "None" not in response_text and response_text.replace('-', '').rstrip().replace('FINISHED', '').rstrip():   
                     history.append(ChatMessage(
-                        role="assistant", content=f"{response.replace('FINISHED', '')}"))
+                        role="assistant", content=f"{response.replace('FINISHED', '').split('</think>')[1]}"))
                     yield history 
                     
                     tool_called = True
@@ -413,16 +583,16 @@ class SigSpace(Basic_Agent):
                         else:
                             tool_calls = [tool_call_text]
                     
-                        tool_calls = [i.replace('-', '') for i in tool_calls if i]
+                        tool_calls = [i.rstrip('-') for i in tool_calls if i]
 
                         for call in tool_calls:
-                            print(f"Calling this command now {call}")
+                            print(f"\033[1;34;40mCalling this command now {call}\033[0m")
                             tool_response = str(eval(call))
                             self.conversation.append({"role": "system", "content": tool_response})
                             history.append(
                                 ChatMessage(role="assistant", content=f"Response from tool: {tool_response}")
                             )
-                            print(f"Got this response {tool_response}")
+                            print(f"\033[1;34;40mGot this response {tool_response}\033[0m")
                             yield history
                 else:
                     history.append(
@@ -433,14 +603,14 @@ class SigSpace(Basic_Agent):
             elif 'Response:' in response or tool_called is False:
                 match = re.search(r"Response:\s*(.*)", response, re.DOTALL)
                 response_text = match.group(1).strip().replace('Tool-call: None', '')
-                print(response_text)
+                print(f"\033[1;33;40mresponse text: {response_text}\033[0m")
                 history.append(
                     ChatMessage(
                         role="assistant", content=f"{response_text.replace('FINISHED', '')}")
                 )
                 yield history
                 
-            if 'FINISHED' in response:
+            if 'FINISHED' in response and tool_called is False:
                 next_round = False
 
 
