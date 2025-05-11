@@ -1,10 +1,12 @@
 from agent.utils import *
 from agent.prompt import *
+import anndata
 import gradio as gr
 from gradio import ChatMessage
 import re
 import pandas as pd
 import pathlib
+import numpy as np
 
 class SigSpace(Basic_Agent):
     def __init__(self, config_path:str):
@@ -25,8 +27,10 @@ class SigSpace(Basic_Agent):
         self.ic50.columns = self.ic50.columns.str.lower()
 
         # Load full Tahoe metadata
-        self.tahoe_cell_meta = pd.read_csv(prism_data_path / "Tahoe_cell_line_metadata.csv")
-        self.tahoe_drug_meta = pd.read_csv(prism_data_path / "Tahoe_drug_metadata.csv")
+        tahoe_path = pathlib.Path("/home/ubuntu/rohit/data")
+        self.tahoe_cell_meta = pd.read_csv(tahoe_path / "cell_line_metadata.csv")
+        self.tahoe_drug_meta = pd.read_csv(tahoe_path / "drug_metadata.csv")
+        self.tahoe_vision_scores = anndata.read_h5ad(tahoe_path / "tahoe_vision_scores.h5ad")
         
         # Load PRISM subset of Tahoe metadata
         self.prism_tahoe_cell_meta = pd.read_csv(prism_data_path / "Tahoe_PRISM_matched_cell_metadata_final.csv")
@@ -37,34 +41,7 @@ class SigSpace(Basic_Agent):
             row["cell_name"].strip(): row["Cell_ID_DepMap"]
             for _, row in self.prism_tahoe_cell_meta.iterrows()
         }
-        print("\033[1;32;40mAgent_Initialized\033[0m")
 
-  
-    def call_agent(self, message:str):
-        print("\033[1;32;40mCalling Agent\033[0m")
-        self.conversation.append({"role": "user", "content": message})
-        response = self.llm_infer(self.conversation)
-        self.conversation.append({"role": "system", "content": response})
-        print("\033[92m" + response + "\033[0m")
-    
-    def run_multistep_agent(self, message: str,
-                            max_round: int = 20,
-                            ) -> str:
-
-        current_round = 0
-        while current_round < max_round:
-            current_round += 1
-            self.conversation.append({"role": "user", "content": message})
-            response = self.llm_infer(self.conversation)
-            self.conversation.append({"role": "system", "content": response})
-            print("\033[92m" + response + "\033[0m")
-            function_response = self.run_function(response)
-            self.conversation.append({"role": "system", "content": function_response})
-            import pdb; pdb.set_trace()
-            
-            # Check if the response contains a specific keyword or condition to break the loop
-            if "stop" in response.lower():
-                break
     
     def initialize_conversation(self, message, conversation=None, history=None):
         if conversation is None:
@@ -160,11 +137,70 @@ class SigSpace(Basic_Agent):
             if pd.isna(ic50_val):
                 print(f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id}).")
                 return f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id})."
-            return ic50_val
+            return float(ic50_val)
         except KeyError as e:
             print(f"Combination not found: {e}")
             return None
-            
+    
+    def rank_vision_scores(self, drug_name: str, cell_line_name: str, k_value: int):
+        self.tahoe_vision_scores.X = (self.tahoe_vision_scores.X - np.mean(self.tahoe_vision_scores.X, axis = 0)) / np.std(self.tahoe_vision_scores.X, axis = 0)
+
+        filtered_scores = self.tahoe_vision_scores[
+            (self.tahoe_vision_scores.obs["Cell_Name_Vevo"] == cell_line_name) & 
+            (self.tahoe_vision_scores.obs["drug"] == drug_name)
+        ]
+
+        filtered_scores = filtered_scores[filtered_scores.obs["concentration"] == filtered_scores.obs["concentration"].max()]
+
+        sorted_indices = np.argsort(-np.abs(filtered_scores.X[0]))[:k_value]
+        filtered_scores = filtered_scores[:, sorted_indices]
+        
+        gene_set_names = filtered_scores.var.index.tolist()
+        vision_values = [str(value) for value in filtered_scores.X[0].tolist()]
+
+        return list(zip(gene_set_names, vision_values))
+    
+    def obtain_moa(self, drug_name: str):
+        row = self.tahoe_drug_meta[self.tahoe_drug_meta["drug"] == drug_name]
+
+        if row.empty:
+            return None
+        return {
+            "moa-broad": row["moa-broad"].values[0],
+            "moa-fine": row["moa-fine"].values[0]
+        }
+
+    def obtain_gene_targets(self, drug_name: str):
+        row = self.tahoe_drug_meta[self.tahoe_drug_meta["drug"] == drug_name]
+        if row.empty:
+            return None
+        
+        targets = row["targets"].values[0]
+
+        if isinstance(targets, str):
+            try:
+                targets = eval(targets)
+            except:
+                targets = [targets]
+
+        return targets
+
+    def obtain_cell_line_data(self, cell_line_name: str):
+        row = self.tahoe_cell_meta[self.tahoe_cell_meta["cell_name"] == cell_line_name]
+
+        if row.empty:
+            return None
+        
+        return {
+            "organ": row["Organ"].values[0],
+            "driver_gene_symbol": row["Driver_Gene_Symbol"],
+            "driver_varzyg": row["Driver_VarZyg"].values[0],
+            "driver_vartype": row["Driver_VarType"].values[0],
+            "driver_proteffect_cdnaeffect": row["Driver_ProtEffect_or_CdnaEffect"].values[0],
+            "driver_mech_inferdm": row["Driver_Mech_InferDM"].values[0],
+            "driver_genetype_dm": row["Driver_GeneType_DM"].values[0]
+        }   
+
     def run_gradio_chat(self, message: str,
                     history: list,
                     temperature: float,
@@ -187,11 +223,6 @@ class SigSpace(Basic_Agent):
         outputs = []
         outputs_str = ''
         last_outputs = []
-
-        # picked_tools_prompt, call_agent_level = self.initialize_tools_prompt(
-        #     call_agent,
-        #     call_agent_level,
-        #     message)
 
         conversation = self.initialize_conversation(
             message,
@@ -223,7 +254,7 @@ class SigSpace(Basic_Agent):
             if 'Tool-call:' in response:
                 match = re.search(r"Tool-call:\s*(.*)", response, re.DOTALL)
                 response_text = match.group(1).strip()
-                if "None" not in response_text:   
+                if "None" not in response_text and response_text.replace('-', '').rstrip().replace('FINISHED', '').rstrip():   
                     history.append(ChatMessage(
                         role="assistant", content=f"{response.replace('FINISHED', '')}"))
                     yield history 
@@ -237,16 +268,30 @@ class SigSpace(Basic_Agent):
                         )
                         next_round = False
                         yield history 
-                    else:                        
-                        tool_response = eval(response_text.replace('\n', '').replace('-', '').replace('FINISHED', ''))
-                        self.conversation.append({"role": "system", "content": tool_response})
-                        history.append(
-                            ChatMessage(role="assistant", content=f"Response from tool: {tool_response}")
-                        )
-                        history.append(
-                            ChatMessage(role="assistant", content=f"Sorry one of the tool calls failed so I am unable to answer your query")
-                        )
-                        yield history
+                    else:        
+                        tool_call_text = response_text
+                        if ';' in tool_call_text:
+                            tool_calls = [i.replace('\n', '').rstrip('-').replace('FINISHED', '') for i in tool_call_text.split(';')]
+                        elif '\n' in tool_call_text:
+                            tool_calls = [i.replace('\n', '').rstrip('-').replace('FINISHED', '') for i in tool_call_text.split('\n')]
+                        else:
+                            tool_calls = [tool_call_text]
+                    
+                        for call in tool_calls:
+                            print(f"Calling this command now {call}")
+                            tool_response = str(eval(call))
+                            self.conversation.append({"role": "system", "content": tool_response})
+                            history.append(
+                                ChatMessage(role="assistant", content=f"Response from tool: {tool_response}")
+                            )
+                            print(f"Got this response {tool_response}")
+                            yield history
+                else:
+                    history.append(
+                                ChatMessage(role="assistant", content=f"{response}")
+                            )
+                    yield history
+
             elif 'Response:' in response or tool_called is False:
                 match = re.search(r"Response:\s*(.*)", response, re.DOTALL)
                 response_text = match.group(1).strip().replace('Tool-call: None', '')
