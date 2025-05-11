@@ -42,7 +42,7 @@ class SigSpace(Basic_Agent):
         self.prism_tahoe_drug_meta = pd.read_csv(prism_data_path / "Tahoe_PRISM_matched_drug_metadata_final.csv")
 
         # Load Achilles gene essentiality data
-        self.crispr_dependency = pd.read_csv("/home/ubuntu/sid/Hackathon_Tahoe/data/CRISPRGeneDependency.csv",index_col=0)
+        self.crispr_dependency = pd.read_csv("/home/ubuntu/sid/Hackathon_Tahoe/data/CRISPRGeneDependency_subset.csv",index_col=0)
 
         # Build cell line common name to depmap_id map (strip whitespace and case)
         self.cell_name_to_depmap = {
