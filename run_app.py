@@ -19,8 +19,9 @@ HF_TOKEN = os.environ.get("HF_TOKEN", None)
 
 
 DESCRIPTION = '''
-<div>
-<h1 style="text-align: center;">An AI Agent for XXXXXXX </h1>
+<div style="text-align: center;">
+  <img src="img/SigSpace.png" alt="SigSpace Logo" style="max-width: 300px; margin-bottom: 20px;" />
+  <h1>An AI Agent for Tahoe-100M</h1>
 </div>
 '''
 INTRO = """
