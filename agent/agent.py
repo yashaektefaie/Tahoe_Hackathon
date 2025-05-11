@@ -120,7 +120,7 @@ class SigSpace(Basic_Agent):
             known_targets_output = f"The known targets from the JUMP dataset are: {', '.join(known_targets_from_jump.split('|'))}"
         except Exception as e:
             print(e)
-            return "FAIL"
+            return "For the drug {drug_name}, we were not able to find the target in the JUMP dataset."
         
         orf_crispr_targets = \
         f"""
