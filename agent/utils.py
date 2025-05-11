@@ -51,7 +51,7 @@ class Basic_Agent():
                 client = OpenAI(api_key = self.openai_api_key,
                                 base_url = self.open_api_base)
                 
-                model = "llama-4-maverick-17b-128e-instruct-fp8"
+                model = "deepseek-r1-671b"
                 response = client.chat.completions.create(
                     model = model,
                     messages = conversation)
