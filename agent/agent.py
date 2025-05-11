@@ -52,6 +52,9 @@ class SigSpace(Basic_Agent):
             for _, row in self.lc50.iterrows()
         }
 
+        gene_sets_path = pathlib.Path("/home/ubuntu/ishita/")
+        self.gene_sets_df = pd.read_csv(gene_sets_path / "msigdb_all_sigs_human_symbols.txt", sep='\t', header=None)
+
     
     def initialize_conversation(self, message, conversation=None, history=None):
         if conversation is None:
@@ -247,6 +250,19 @@ class SigSpace(Basic_Agent):
         
         return lc50_output
     
+    def get_gene_set(self, gene_set: list[str]):
+        gene_set_mapping = {}
+        for gene_name in gene_set:
+            # Remove the GS_ prefix from the gene name
+            gene_name_updated = gene_name.replace("gs_", "")
+            row = self.gene_sets_df[self.gene_sets_df[0] == gene_name_updated]
+            if not row.empty:
+                # Return all columns except the first one (the gene set name)
+                gene_set_mapping[gene_name] = row.iloc[0, 1:].dropna().tolist()
+            else:
+                gene_set_mapping[gene_name] = []
+        return gene_set_mapping
+    
     def rank_vision_scores(self, drug_name: str, cell_line_name: str, k_value: int):
         self.tahoe_vision_scores.X = (self.tahoe_vision_scores.X - np.mean(self.tahoe_vision_scores.X, axis = 0)) / np.std(self.tahoe_vision_scores.X, axis = 0)
 
@@ -276,10 +292,11 @@ class SigSpace(Basic_Agent):
             "down-regulation.\n"
         )
 
+        gene_set_mapping = self.get_gene_set(gene_sets)
         lines = []
         for gs, val in zip(gene_sets, scores):
             direction = "up-regulated" if val > 0 else "down-regulated" if val < 0 else "not changed"
-            lines.append(f"{gs}: {direction} (VISION score = {val:.3f})")
+            lines.append(f"{gs} has gene set {gene_set_mapping[gs]} : {direction} (VISION score = {val:.3f})")
 
         return header + "\n".join(lines)
     
