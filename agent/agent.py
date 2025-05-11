@@ -52,9 +52,6 @@ class SigSpace(Basic_Agent):
             for _, row in self.lc50.iterrows()
         }
 
-        gene_sets_path = pathlib.Path("/home/ubuntu/ishita/")
-        self.gene_sets_df = pd.read_csv(gene_sets_path / "msigdb_all_sigs_human_symbols.txt", sep='\t', header=None)
-
     
     def initialize_conversation(self, message, conversation=None, history=None):
         if conversation is None:
