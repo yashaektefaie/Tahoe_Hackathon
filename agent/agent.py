@@ -203,8 +203,11 @@ class SigSpace(Basic_Agent):
         lc50_output = \
         f"""
         The LC50 value of {lc50_val} represents -log10(LC50), the negative base-10 logarithm of the molar concentration that inhibits 50% of cell growth. 
+
         Higher LC50 values therefore indicate greater drug potency. 
+
         The LCONC value of {lconc_val} denotes the maximum log10 molar concentration tested in the dilution series—for example, LCONC = -4 corresponds to 10^-4 M. 
+        
         Both metrics come from the NCI-60 drug screen, which applies a standardized 48-hour exposure assay across all compound–cell-line pairs."
         """
         
