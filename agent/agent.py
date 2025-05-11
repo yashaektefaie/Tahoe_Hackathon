@@ -322,7 +322,8 @@ class SigSpace(Basic_Agent):
         )
         lines = []
         for gs, val in zip(gene_sets, scores):
-            genes = self.get_genes_for_set(gs)
+            gs_name = gs.replace("gs_", "")
+            genes = self.get_genes_for_set(gs_name)
             direction = "up-regulated" if val > 0 else "down-regulated" if val < 0 else "not changed"
             lines.append(f"{gs} has gene set {genes} : {direction} (VISION score = {val:.3f})")
 
