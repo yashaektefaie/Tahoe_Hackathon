@@ -54,7 +54,7 @@ The tool call for this agent is: "self.get_lc50_nci60(drug_name, cell_line_name)
 
 (9) A tool which searches for the similar perturbation effect within the Tahoe dataset. 
 
-The tool call for this agent is: "get_similar_drug_effect_in_tahoe(cell_line_name, drug_name)" where cell_line_name and drug_name must be strings. These are not keyword arguments. The output of this tool is a string of dataframe that tells you about what other **drugs** in tahoe have similar perturbation effect on the cell line. 
+The tool call for this agent is: "self.get_similar_drug_effect_in_tahoe(cell_line_name, drug_name)" where cell_line_name and drug_name must be strings. These are not keyword arguments. The output of this tool is a string of dataframe that tells you about what other **drugs** in tahoe have similar perturbation effect on the cell line. 
 
 (10) A tool that does natural perturbation search in Cellxgene database for similar drug effect.
 

@@ -53,8 +53,9 @@ class SigSpace(Basic_Agent):
         }
         
         # load the precomputed similarity scores for within-tahoe and cxg
-        self.tahoe_similarity_score = pd.read_csv("/home/ubuntu/kuan/Tahoe_Hackathon/data" / "in_tahoe_search_result_df.csv")
-        self.tahoe_cxg_similarity_score = pd.read_csv("/home/ubuntu/kuan/Tahoe_Hackathon/data" / "in_cxg_search_result_df.csv")
+        tahoe_path = pathlib.Path("/home/ubuntu/kuan/data")
+        self.tahoe_similarity_score = pd.read_csv(tahoe_path / "in_tahoe_search_result_df.csv")
+        self.tahoe_cxg_similarity_score = pd.read_csv(tahoe_path / "cxg_search_result_df.csv")
 
     
     def initialize_conversation(self, message, conversation=None, history=None):
@@ -284,19 +285,21 @@ class SigSpace(Basic_Agent):
             cell_line_name (str): The name of the cell line.
             drug_name (str): The name of the drug.
         """
-        cell_line_names = self.tahoe_similarity_score["cell_line"].unique().tolist()
+        cell_line_names = self.tahoe_similarity_score["source_cell_line"].unique().tolist()
         drug_names = self.tahoe_similarity_score["source_drug_name"].unique().tolist()
         if cell_line_name not in cell_line_names:
             return "FAIL: Cell line name not found in the dataset. A example: CVCL_0218"
         if drug_name not in drug_names:
             return "FAIL: Drug name not found in the dataset. A example: Daptomycin"
         hits = self.tahoe_similarity_score[
-            (self.tahoe_similarity_score["cell_line"] == cell_line_name) &
+            (self.tahoe_similarity_score["source_cell_line"] == cell_line_name) &
             (self.tahoe_similarity_score["source_drug_name"] == drug_name)
         ]
         # sort by distance
-        hits = hits.sort_values(by="distance", ascending=True)
-        hits = hits[["distance"]].head(10)
+        hits = hits.sort_values(by="distance", ascending=True).reset_index(drop=True)
+        hits = hits.head(10)
+        # keep target_drug_name and target_cell_line
+        hits = hits[["target_drug_name", "target_cell_line",]]
         outputs = f"""
         The following drugs have similar effects to the drug you provided:
         hits: 
@@ -322,8 +325,10 @@ class SigSpace(Basic_Agent):
             (self.tahoe_cxg_similarity_score["cell_line"] == cell_line_name) &
             (self.tahoe_cxg_similarity_score["perturbation_drug_name"] == drug_name)
         ]
-        hits = hits.sort_values(by="distance", ascending=True)
-        hits = hits[["distance"]].head(10)
+        hits = hits.sort_values(by="distance", ascending=True).reset_index(drop=True)
+        hits = hits.head(10)
+        # keeps cell_type tissue_type and disease	
+        hits = hits[["cell_type", "tissue_type", "disease"]]
         outputs = f"""
         The following diseases have similar effects to the drug you provided:
         hits: 
