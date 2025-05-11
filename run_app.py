@@ -83,7 +83,7 @@ new_tool_files = {
     'new_tool': os.path.join(current_dir, 'data', 'new_tool.json'),
 }
 
-config_path = "/Users/yashaektefaie/Desktop/Tahoe_AI/Tahoe_Hackathon/configs/config.yaml"
+config_path = "/home/ubuntu/.lambda_api_config.yaml"
 agent = SigSpace(config_path)
 # agent.init_model()
 
