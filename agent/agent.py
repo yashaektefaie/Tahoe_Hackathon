@@ -182,10 +182,9 @@ class SigSpace(Basic_Agent):
                 "compared to the primary screen.\n\n"
                 "Lower IC50 values indicate greater sensitivity of the cell line to the drug."
             )
-
-    except KeyError as e:
-        print(f"Combination not found: {e}")
-        return None
+        except KeyError as e:
+            print(f"Combination not found: {e}")
+            return None
 
     def clean_cell_line_name(self, name):
         """
@@ -400,14 +399,14 @@ class SigSpace(Basic_Agent):
             self.conversation.append({"role": "system", "content": response})
             tool_called = False 
             print(response)
-            import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
 
             if 'Tool-call:' in response:
                 match = re.search(r"Tool-call:\s*(.*)", response, re.DOTALL)
                 response_text = match.group(1).strip()
                 if "None" not in response_text and response_text.replace('-', '').rstrip().replace('FINISHED', '').rstrip():   
                     history.append(ChatMessage(
-                        role="assistant", content=f"{response.replace('FINISHED', '')}"))
+                        role="assistant", content=f"{response.replace('FINISHED', '').split('</think>')[1]}"))
                     yield history 
                     
                     tool_called = True
@@ -431,13 +430,13 @@ class SigSpace(Basic_Agent):
                         tool_calls = [i.rstrip('-') for i in tool_calls if i]
 
                         for call in tool_calls:
-                            print(f"Calling this command now {call}")
+                            print(f"\033[1;34;40mCalling this command now {call}\033[0m")
                             tool_response = str(eval(call))
                             self.conversation.append({"role": "system", "content": tool_response})
                             history.append(
                                 ChatMessage(role="assistant", content=f"Response from tool: {tool_response}")
                             )
-                            print(f"Got this response {tool_response}")
+                            print(f"\033[1;34;40mGot this response {tool_response}\033[0m")
                             yield history
                 else:
                     history.append(
@@ -446,18 +445,16 @@ class SigSpace(Basic_Agent):
                     yield history
 
             elif 'Response:' in response or tool_called is False:
-                import pdb; pdb.set_trace()
                 match = re.search(r"Response:\s*(.*)", response, re.DOTALL)
                 response_text = match.group(1).strip().replace('Tool-call: None', '')
-                print(response_text)
+                print(f"\033[1;33;40mresponse text: {response_text}\033[0m")
                 history.append(
                     ChatMessage(
                         role="assistant", content=f"{response_text.replace('FINISHED', '')}")
                 )
                 yield history
                 
-            if 'FINISHED' in response:
-                import pdb; pdb.set_trace()
+            if 'FINISHED' in response and tool_called is False:
                 next_round = False
 
 
