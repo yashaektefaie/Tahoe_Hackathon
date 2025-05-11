@@ -338,7 +338,7 @@ class SigSpace(Basic_Agent):
                         else:
                             tool_calls = [tool_call_text]
                     
-                        tool_calls = [i for i in tool_calls if i]
+                        tool_calls = [i.replace('-', '') for i in tool_calls if i]
 
                         for call in tool_calls:
                             print(f"Calling this command now {call}")
