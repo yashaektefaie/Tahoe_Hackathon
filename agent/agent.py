@@ -41,6 +41,9 @@ class SigSpace(Basic_Agent):
         self.prism_tahoe_cell_meta = pd.read_csv(prism_data_path / "Tahoe_PRISM_matched_cell_metadata_final.csv")
         self.prism_tahoe_drug_meta = pd.read_csv(prism_data_path / "Tahoe_PRISM_matched_drug_metadata_final.csv")
 
+        # Load Achilles gene essentiality data
+        self.crispr_dependency = pd.read_csv("/home/ubuntu/sid/Hackathon_Tahoe/data/CRISPRGeneDependency.csv",index_col=0)
+
         # Build cell line common name to depmap_id map (strip whitespace and case)
         self.cell_name_to_depmap = {
             row["cell_name"].strip(): row["Cell_ID_DepMap"]
@@ -128,29 +131,6 @@ class SigSpace(Basic_Agent):
         {known_targets_output}
         """ 
         return orf_crispr_targets
-    
-    # def get_ic50_prism(self, drug_name: str, cell_line_name: str):
-    #     drug_name_lower = drug_name.strip().lower()
-    #     cell_line_key = cell_line_name.strip()
-
-    #     if cell_line_key not in self.cell_name_to_depmap:
-    #         print(f"Cell line name '{cell_line_key}' not found for PRISM data")
-    #         return f"FAIL: Cell line name '{cell_line_key}' not found for PRISM data"
-    #     depmap_id = self.cell_name_to_depmap[cell_line_key]
-
-    #     if drug_name_lower not in self.ic50.columns:
-    #         print(f"Drug name '{drug_name}' not found in IC50 matrix columns.")
-    #         return f"FAIL: Drug name '{drug_name}' not found in IC50 matrix columns."
-
-    #     try:
-    #         ic50_val = self.ic50.loc[depmap_id, drug_name_lower]
-    #         if pd.isna(ic50_val):
-    #             print(f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id}).")
-    #             return f"FAIL: IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id})."
-    #         return float(ic50_val)
-    #     except KeyError as e:
-    #         print(f"Combination not found: {e}")
-    #         return None
 
     def get_ic50_prism(self, drug_name: str, cell_line_name: str):
         drug_name_lower = drug_name.strip().lower()
@@ -186,6 +166,69 @@ class SigSpace(Basic_Agent):
     except KeyError as e:
         print(f"Combination not found: {e}")
         return None
+
+    def get_gene_essentiality_achilles_ranked_all(self, gene_list: list, cell_line_name: str):
+        cell_line_key = cell_line_name.strip()
+
+        if cell_line_key not in self.cell_name_to_depmap:
+            print(f"Cell line name '{cell_line_key}' not found in dependency mapping.")
+            return f"FAIL: Cell line name '{cell_line_key}' not found in dependency mapping."
+
+        depmap_id = self.cell_name_to_depmap[cell_line_key]
+
+        if depmap_id not in self.crispr_dependency.index:
+            print(f"DepMap ID '{depmap_id}' not found in CRISPR dependency dataset.")
+            return f"FAIL: DepMap ID '{depmap_id}' not found in CRISPR dependency dataset."
+
+        gene_scores = {}
+        not_found = []
+
+        for gene_name in gene_list:
+            gene_clean = gene_name.strip()
+            if gene_clean not in self.gene_to_full_column:
+                not_found.append(gene_clean)
+                continue
+
+            gene_col = self.gene_to_full_column[gene_clean]
+
+            try:
+                prob_score = self.crispr_dependency.loc[depmap_id, gene_col]
+                if not pd.isna(prob_score):
+                    gene_scores[gene_clean] = float(prob_score)
+            except Exception:
+                continue
+
+        if not gene_scores:
+            return "No valid dependency scores were found for this cell line and gene list."
+
+        # Sort all found genes by descending essentiality
+        sorted_genes = sorted(gene_scores.items(), key=lambda x: -x[1])
+
+        header = (
+            f"Gene essentiality scores for the {cell_line_name} cell line (DepMap ID: {depmap_id}):\n\n"
+            "These scores are derived from the Achilles CRISPR-Cas9 knockout screen (post-Chronos), estimating the "
+            "probability that disrupting a gene impairs cell viability.\n\n"
+            "Higher values indicate stronger essentiality:\n"
+            "- 1.0 = highly likely essential\n"
+            "- 0.5 = possible essentiality threshold\n"
+            "- 0.0 = likely non-essential\n\n"
+            "Ranked gene dependency scores:\n"
+        )
+
+        lines = []
+        for i, (gene, score) in enumerate(sorted_genes, 1):
+            if score >= 0.75:
+                label = "strongly essential"
+            elif score >= 0.5:
+                label = "possibly essential"
+            else:
+                label = "likely non-essential"
+            lines.append(f"{i}. {gene}: {score:.3f} ({label})")
+
+        if not_found:
+            lines.append(f"\nNote: The following gene(s) were not found and were skipped: {', '.join(not_found)}.")
+
+        return header + "\n" + "\n".join(lines)
 
     def clean_cell_line_name(self, name):
         """
