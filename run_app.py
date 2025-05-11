@@ -86,6 +86,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 question_examples = [
     ['Can you compare the IC50 values for the drug Abemaciclib in the cell line A549 and CHP-212?'],
+    ["What's the MoA of the drug Ponatinib on the HCT15 colon cancer cell line? Please synthesize results from the Tahoe-100M dataset, the jump dataset, and the IC50 dataset."]
 ]
 
 new_tool_files = {
