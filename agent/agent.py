@@ -445,9 +445,9 @@ class SigSpace(Basic_Agent):
                     else:        
                         tool_call_text = response_text
                         if ';' in tool_call_text:
-                            tool_calls = [i.replace('\n', '').rstrip('-').replace('FINISHED', '') for i in tool_call_text.split(';') if i]
+                            tool_calls = [i.replace('\n', '').rstrip('-').replace('FINISHED', '').replace('Response:', '') for i in tool_call_text.split(';') if i]
                         elif '\n' in tool_call_text:
-                            tool_calls = [i.replace('\n', '').rstrip('-').replace('FINISHED', '') for i in tool_call_text.split('\n') if i]
+                            tool_calls = [i.replace('\n', '').rstrip('-').replace('FINISHED', '').replace('Response:', '') for i in tool_call_text.split('\n') if i]
                         else:
                             tool_calls = [tool_call_text]
                     
