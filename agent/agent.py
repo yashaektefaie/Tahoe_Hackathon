@@ -250,19 +250,51 @@ class SigSpace(Basic_Agent):
         
         return lc50_output
     
-    def get_gene_set(self, gene_set: list[str]):
-        gene_set_mapping = {}
-        for gene_name in gene_set:
-            # Remove the GS_ prefix from the gene name
-            gene_name_updated = gene_name.replace("gs_", "")
-            row = self.gene_sets_df[self.gene_sets_df[0] == gene_name_updated]
-            if not row.empty:
-                # Return all columns except the first one (the gene set name)
-                gene_set_mapping[gene_name] = row.iloc[0, 1:].dropna().tolist()
-            else:
-                gene_set_mapping[gene_name] = []
-        return gene_set_mapping
-    
+    def load_gene_sets_file(self, file_path):
+        """
+        Load gene sets from a tab-delimited file where the first column is the gene set name
+        and the remaining columns are gene symbols.
+        
+        Parameters:
+        -----------
+        file_path : str
+            Path to the gene sets file
+            
+        Returns:
+        --------
+        dict
+            Dictionary mapping gene set names to lists of genes
+        """
+        gene_sets = {}
+        with open(file_path, 'r') as file:
+            for line in file:
+                parts = line.strip().split('\t')
+                if parts:
+                    set_name = parts[0]
+                    genes = [gene for gene in parts[1:] if gene]  # Filter out empty strings
+                    gene_sets[set_name] = genes
+        return gene_sets
+
+    def get_genes_for_set(self, set_name):
+        """
+        Get the list of genes for a specific gene set.
+        
+        Parameters:
+        -----------
+        set_name : str
+            Name of the gene set to query
+            
+        Returns:
+        --------
+        list
+            List of genes in the gene set, or empty list if set not found
+        """
+        if not hasattr(self, 'gene_sets'):
+            # Load the gene sets file if it hasn't been loaded yet
+            self.gene_sets = self.load_gene_sets_file('/home/ubuntu/ishita/msigdb_all_sigs_human_symbols.txt')
+        
+        return self.gene_sets.get(set_name, [])
+            
     def rank_vision_scores(self, drug_name: str, cell_line_name: str, k_value: int):
         self.tahoe_vision_scores.X = (self.tahoe_vision_scores.X - np.mean(self.tahoe_vision_scores.X, axis = 0)) / np.std(self.tahoe_vision_scores.X, axis = 0)
 
@@ -291,12 +323,11 @@ class SigSpace(Basic_Agent):
             "up-regulation of the gene set in the queried condition; negative scores indicate "
             "down-regulation.\n"
         )
-
-        gene_set_mapping = self.get_gene_set(gene_sets)
         lines = []
         for gs, val in zip(gene_sets, scores):
+            genes = self.get_genes_for_set(gs)
             direction = "up-regulated" if val > 0 else "down-regulated" if val < 0 else "not changed"
-            lines.append(f"{gs} has gene set {gene_set_mapping[gs]} : {direction} (VISION score = {val:.3f})")
+            lines.append(f"{gs} has gene set {genes} : {direction} (VISION score = {val:.3f})")
 
         return header + "\n".join(lines)
     
