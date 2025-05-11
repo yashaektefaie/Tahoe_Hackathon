@@ -26,6 +26,11 @@ class SigSpace(Basic_Agent):
         self.ic50 = pd.read_csv(prism_data_path / "Tahoe_PRISM_cell_by_drug_ic50_matrix_named.csv", index_col=0)
         self.ic50.columns = self.ic50.columns.str.lower()
 
+        nci60_path = pathlib.Path("/home/ubuntu/ishita/tahoe/")
+        self.lc50 = pd.read_csv(nci60_path / "filtered_results.csv")
+        # Filter out rows where CELL is nan
+        self.lc50 = self.lc50[self.lc50['CELL'].notna()]
+
         # Load full Tahoe metadata
         tahoe_path = pathlib.Path("/home/ubuntu/rohit/data")
         self.tahoe_cell_meta = pd.read_csv(tahoe_path / "cell_line_metadata.csv")
@@ -40,6 +45,11 @@ class SigSpace(Basic_Agent):
         self.cell_name_to_depmap = {
             row["cell_name"].strip(): row["Cell_ID_DepMap"]
             for _, row in self.prism_tahoe_cell_meta.iterrows()
+        }
+
+        self.cell_name_to_depmap_lc50 = {
+            row["clean"].strip(): row["cell_line_name"]
+            for _, row in self.lc50.iterrows()
         }
 
     
@@ -141,6 +151,57 @@ class SigSpace(Basic_Agent):
         except KeyError as e:
             print(f"Combination not found: {e}")
             return None
+    
+    def clean_cell_line_name(self, name):
+        """
+        Standardize cell line names for comparison by:
+        1. Converting to string (handles any non-string values)
+        2. Converting to uppercase
+        3. Removing all non-alphanumeric characters
+        
+        Args:
+            name: Cell line name (string or other type)
+            
+        Returns:
+            Cleaned string with only uppercase letters and numbers
+        """
+        return re.sub(r"[^A-Z0-9]", "", str(name).upper())
+
+    def get_lc50_nci60(self, drug_name: str, cell_line_name: str):
+        cell_line_name = cell_line_name.upper()
+        cell_line_key = self.clean_cell_line_name(cell_line_name)
+
+        if cell_line_key not in self.cell_name_to_depmap_lc50:
+            print(f"Cell line name '{cell_line_key}' not found for NCI60 data")
+            return None
+        depmap_id = self.cell_name_to_depmap_lc50[cell_line_key]
+        print ("Depmap_id", depmap_id)
+
+        # Find the drug in NCI60 dataset
+        # Since drugs are in uppercase in the list, convert search term to uppercase
+        drug_name_upper = drug_name.strip().upper()
+
+        # Filter rows where the drug name is in the drug column
+        # This assumes drugs in each row are comma-separated or in a format that can be searched
+        matching_row = self.lc50[self.lc50['drug'].str.contains(drug_name_upper, na=False)]
+        print ("Matching row", matching_row)
+        if matching_row.empty:
+            print(f"Drug name '{drug_name}' not found in NCI60 dataset.")
+            return None
+
+        if matching_row.empty:
+            raise ValueError(f"Multiple matches found for drug '{drug_name}' in NCI60 dataset.")
+
+        print ("Matching row", matching_row)
+        # Get the LC50 value from the matching row
+        lc50_val = matching_row.iloc[0]['NLOGLC50']
+        lconc_val = matching_row.iloc[0]['LCONC']
+
+        if pd.isna(lc50_val):
+            print(f"LC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id}).")
+            return None
+
+        return str(lc50_val), str(lconc_val)
     
     def rank_vision_scores(self, drug_name: str, cell_line_name: str, k_value: int):
         self.tahoe_vision_scores.X = (self.tahoe_vision_scores.X - np.mean(self.tahoe_vision_scores.X, axis = 0)) / np.std(self.tahoe_vision_scores.X, axis = 0)

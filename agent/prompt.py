@@ -48,4 +48,7 @@ The tool call for this agent is: "self.obtain_gene_targets(drug_name)" where dru
 
 The tool call for this agent is: "self.obtain_cell_line_data(cell_line_name)" where cell_line_name must be a string. This is not a keyword argument. The output of this tool is a dictionary containing information about key driver mutations for each cell line.
 
+(8) A tool which can retrieve the LC50 value for a drug and cell line from the NCI-60 dataset.
+
+The tool call for this agent is: "self.get_lc50_nci60(drug_name, cell_line_name)" where drug_name and cell_line_name must be strings. These are not keyword arguments.The output of this tool is a tuple of (LC50, LCONC). The LC50 value is in log10 scale and the LCONC is a scalar value that is in log10 scale. It is thelog of the highest concentration tested.
 """
