@@ -41,7 +41,7 @@ We have curated new datasets that enhance the description of drugs and cell-line
 
 Specifically:
 - PRISM: <briefly describe the database and what kind of information the agent is able to parse from it>
-- NCI60: <briefly describe the database and what kind of information the agent is able to parse from it>
+- NCI60: We use NCI-60 LC50 data, which reports the concentration of a drug that kills 50% of the cells present at the time of drug addition. It is measured across a panel of 60 human cancer cell lines using standardized multi-dose assays. <briefly describe the database and what kind of information the agent is able to parse from it>
 - JUMP: <briefly describe the database and what kind of information the agent is able to parse from it>
 - UCE-CXG-EMBEDDING: natural perturbation search using AI virtual cell <briefly describe the database and what kind of information the agent is able to parse from it>
 - ACHILLES: gene essentiality <briefly describe the database and what kind of information the agent is able to parse from it>
