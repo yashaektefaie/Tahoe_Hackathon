@@ -390,7 +390,3 @@ class SigSpace(Basic_Agent):
         #         yield history
         #     else:
         #         return None  
-
-if __name__ == "__main__":
-    agent = SigSpace("/home/ubuntu/.lambda_api_config.yaml")
-    agent.get_validated_target_jump("Quinidine (15% dihydroquinidine)")
