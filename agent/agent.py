@@ -242,7 +242,7 @@ class SigSpace(Basic_Agent):
         Higher LC50 values therefore indicate greater drug potency. 
 
         The LCONC value of {lconc_val} denotes the maximum log10 molar concentration tested in the dilution series—for example, LCONC = -4 corresponds to 10^-4 M. 
-        
+
         Both metrics come from the NCI-60 drug screen, which applies a standardized 48-hour exposure assay across all compound–cell-line pairs."
         """
         
@@ -251,61 +251,105 @@ class SigSpace(Basic_Agent):
     def rank_vision_scores(self, drug_name: str, cell_line_name: str, k_value: int):
         self.tahoe_vision_scores.X = (self.tahoe_vision_scores.X - np.mean(self.tahoe_vision_scores.X, axis = 0)) / np.std(self.tahoe_vision_scores.X, axis = 0)
 
-        filtered_scores = self.tahoe_vision_scores[
-            (self.tahoe_vision_scores.obs["Cell_Name_Vevo"] == cell_line_name) & 
-            (self.tahoe_vision_scores.obs["drug"] == drug_name)
+        # subset to the drug / cell line at the highest tested concentration
+        filt = (
+            (self.tahoe_vision_scores.obs["Cell_Name_Vevo"] == cell_line_name)
+            & (self.tahoe_vision_scores.obs["drug"] == drug_name)
+        )
+        filtered_scores = self.tahoe_vision_scores[filt]
+        if filtered_scores.n_obs == 0:
+            return "VISION scores not found for this drug–cell-line combination."
+
+        filtered_scores = filtered_scores[
+            filtered_scores.obs["concentration"] == filtered_scores.obs["concentration"].max()
         ]
 
-        filtered_scores = filtered_scores[filtered_scores.obs["concentration"] == filtered_scores.obs["concentration"].max()]
+        # pick top-|score| gene sets
+        top_idx = np.argsort(-np.abs(filtered_scores.X[0]))[:k_value]
+        gene_sets = filtered_scores.var.index[top_idx].tolist()
+        scores    = filtered_scores.X[0, top_idx].tolist()
 
-        sorted_indices = np.argsort(-np.abs(filtered_scores.X[0]))[:k_value]
-        filtered_scores = filtered_scores[:, sorted_indices]
-        
-        gene_set_names = filtered_scores.var.index.tolist()
-        vision_values = [str(value) for value in filtered_scores.X[0].tolist()]
+        # build the narrative
+        header = (
+            "VISION scores are single-cell gene-set enrichment values computed by the "
+            "VISION algorithm (DeTomaso & Yosef 2021). Positive scores indicate relative "
+            "up-regulation of the gene set in the queried condition; negative scores indicate "
+            "down-regulation.\n"
+        )
 
-        return list(zip(gene_set_names, vision_values))
+        lines = []
+        for gs, val in zip(gene_sets, scores):
+            direction = "up-regulated" if val > 0 else "down-regulated" if val < 0 else "not changed"
+            lines.append(f"{gs}: {direction} (VISION score = {val:.3f})")
+
+        return header + "\n".join(lines)
     
     def obtain_moa(self, drug_name: str):
         row = self.tahoe_drug_meta[self.tahoe_drug_meta["drug"] == drug_name]
 
         if row.empty:
-            return None
-        return {
-            "moa-broad": row["moa-broad"].values[0],
-            "moa-fine": row["moa-fine"].values[0]
-        }
+            return "MOA annotation not found for this drug."
+        
+        moa_broad = row["moa-broad"].values[0]
+        moa_fine  = row["moa-fine"].values[0]
+
+        return (
+            f"Broad MOA: {moa_broad}; "
+            f"Fine MOA: {moa_fine}. "
+            "Fine-grained mechanism of action (MOA) annotation for the drug, "
+            "specifying the biological process or molecular target affected. "
+            "Derived from MedChemExpress and curated with GPT-based annotations."
+        )
 
     def obtain_gene_targets(self, drug_name: str):
         row = self.tahoe_drug_meta[self.tahoe_drug_meta["drug"] == drug_name]
         if row.empty:
-            return None
+            return "Gene targets not found for this drug."
         
         targets = row["targets"].values[0]
 
+        # Convert a stringified list/dict to a Python object, if necessary.
         if isinstance(targets, str):
             try:
                 targets = eval(targets)
-            except:
+            except Exception:  # fall back to treating it as a single ID
                 targets = [targets]
 
-        return targets
+        return (
+            f"Gene target token IDs: {targets}. "
+            "Gene identifiers (integer token IDs) corresponding to each gene with non-zero expression in the cell."
+        )
 
     def obtain_cell_line_data(self, cell_line_name: str):
         row = self.tahoe_cell_meta[self.tahoe_cell_meta["cell_name"] == cell_line_name]
 
         if row.empty:
-            return None
+            return "Cell-line metadata not found for this cell line."
         
-        return {
-            "organ": row["Organ"].values[0],
-            "driver_gene_symbol": row["Driver_Gene_Symbol"],
-            "driver_varzyg": row["Driver_VarZyg"].values[0],
-            "driver_vartype": row["Driver_VarType"].values[0],
-            "driver_proteffect_cdnaeffect": row["Driver_ProtEffect_or_CdnaEffect"].values[0],
-            "driver_mech_inferdm": row["Driver_Mech_InferDM"].values[0],
-            "driver_genetype_dm": row["Driver_GeneType_DM"].values[0]
-        }   
+        organ                 = row["Organ"].values[0]
+        driver_gene_symbol    = row["Driver_Gene_Symbol"].values[0]
+        driver_varzyg         = row["Driver_VarZyg"].values[0]
+        driver_vartype        = row["Driver_VarType"].values[0]
+        driver_proteffect     = row["Driver_ProtEffect_or_CdnaEffect"].values[0]
+        driver_mech_inferdm   = row["Driver_Mech_InferDM"].values[0]
+        driver_genetype_dm    = row["Driver_GeneType_DM"].values[0]
+
+        return (
+            f"Organ: {organ}; "
+            f"Driver_Gene_Symbol: {driver_gene_symbol}; "
+            f"Driver_VarZyg: {driver_varzyg}; "
+            f"Driver_VarType: {driver_vartype}; "
+            f"Driver_ProtEffect_or_CdnaEffect: {driver_proteffect}; "
+            f"Driver_Mech_InferDM: {driver_mech_inferdm}; "
+            f"Driver_GeneType_DM: {driver_genetype_dm}. "
+            "Organ = tissue or organ of origin for the cell line (e.g., Lung), used to interpret lineage-specific responses. "
+            "Driver_Gene_Symbol = HGNC-approved symbol of a driver gene with functional alterations in this cell line. "
+            "Driver_VarZyg = zygosity of the driver variant (Hom = homozygous, Het = heterozygous). "
+            "Driver_VarType = type of genetic alteration (e.g., Missense, Frameshift, Stopgain). "
+            "Driver_ProtEffect_or_CdnaEffect = precise protein or cDNA-level annotation of the mutation (e.g., p.G12S). "
+            "Driver_Mech_InferDM = inferred functional mechanism (LoF = loss-of-function, GoF = gain-of-function). "
+            "Driver_GeneType_DM = classification of the driver gene as an Oncogene or Suppressor."
+        )   
 
     def run_gradio_chat(self, message: str,
                     history: list,
