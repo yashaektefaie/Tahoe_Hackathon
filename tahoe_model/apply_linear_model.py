@@ -7,6 +7,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from scipy.stats import pearsonr
 import os
+import pandas as pd
 
 merged_anndata = anndata.read_h5ad("data/tahoe_vision_universal_embeddings.h5ad")
 
@@ -17,8 +18,6 @@ labels = merged_anndata.var.index.tolist() # 7467
 X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size = 0.2, random_state = 42)
 
 if os.path.exists("models/linear_regression_model.pkl"):
-    print("model file already exists, loading the model")
-
     model = joblib.load("models/linear_regression_model.pkl")
 
     y_pred_test = model.predict(X_test)
@@ -42,9 +41,18 @@ if os.path.exists("models/linear_regression_model.pkl"):
         os.makedirs("figures")
     
     plt.savefig("figures/pearson_correlation_distribution.png")
-    print("Figure saved under 'figures/pearson_correlation_distribution.png'")
 
+    top_20_indices_per_row = np.argsort(np.abs(y_test), axis=1)[:, -20:]
 
+    correlations = []
+    for i in range(y_test.shape[0]):
+        actual_top_20 = y_test[i, top_20_indices_per_row[i]]
+        predicted_top_20 = y_pred_test[i, top_20_indices_per_row[i]]
+        correlation = pearsonr(actual_top_20, predicted_top_20)[0]
+        correlations.append(correlation)
+
+    average_correlation = np.mean(correlations)
+    print(f"Average correlation for top 20 magnitude gene sets per row: {average_correlation:.4f}")
     
 else:
     model = LinearRegression()
@@ -57,15 +65,29 @@ else:
     train_mse = mean_squared_error(y_train, y_pred_train)
     test_mse = mean_squared_error(y_test, y_pred_test)
 
-    train_pearson = [pearsonr(y_train[:, i], y_pred_train[:, i])[0] for i in range(y_train.shape[1])]
-    test_pearson = [pearsonr(y_test[:, i], y_pred_test[:, i])[0] for i in range(y_test.shape[1])]
-
     print(f"training MSE: {train_mse}")
     print(f"testing MSE: {test_mse}")
-    print(f"average training pearson correlation: {np.mean(train_pearson)}")
-    print(f"average testing pearson correlation: {np.mean(test_pearson)}")
-
-    overall_correlation = pearsonr(y_pred_test.flatten(), y_test.flatten())[0]
-    print(f"overall pearson correlation between y_pred_test and y_test: {overall_correlation}")
 
     joblib.dump(model, "models/linear_regression_model.pkl")
+
+model = joblib.load("models/linear_regression_model.pkl")
+
+disease_deltas = anndata.read_h5ad("data/disease_deltas.h5ad")
+predicted_vision_signatures = model.predict(disease_deltas.X)
+
+dataframe = pd.DataFrame(predicted_vision_signatures, columns = labels)
+
+labels_combined = disease_deltas.obs.apply(
+    lambda row: f"{row['cell_type']}_{row['tissue']}_{row['disease']}", axis=1
+).tolist()
+
+top_20_gene_sets = []
+
+for index, row in dataframe.iterrows():
+    top_20_indices = np.argsort(np.abs(row))[-20:][::-1]
+    top_20 = [(labels[i], "down" if row.iloc[i] < 0 else "up") for i in top_20_indices]
+    top_20_gene_sets.append(top_20)
+
+with open("top_20_gene_sets.txt", "w") as f:
+    for i, gene_set in enumerate(top_20_gene_sets):
+        f.write(f"{labels_combined[i]}\t" + "\t".join([f"{gene}:{direction}" for gene, direction in gene_set]) + "\n")
