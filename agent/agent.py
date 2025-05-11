@@ -183,9 +183,9 @@ class SigSpace(Basic_Agent):
                 "Lower IC50 values indicate greater sensitivity of the cell line to the drug."
             )
 
-    except KeyError as e:
-        print(f"Combination not found: {e}")
-        return None
+        except KeyError as e:
+            print(f"Combination not found: {e}")
+            return None
 
     def clean_cell_line_name(self, name):
         """
@@ -400,7 +400,7 @@ class SigSpace(Basic_Agent):
             self.conversation.append({"role": "system", "content": response})
             tool_called = False 
             print(response)
-            import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
 
             if 'Tool-call:' in response:
                 match = re.search(r"Tool-call:\s*(.*)", response, re.DOTALL)
@@ -446,7 +446,7 @@ class SigSpace(Basic_Agent):
                     yield history
 
             elif 'Response:' in response or tool_called is False:
-                import pdb; pdb.set_trace()
+                # import pdb; pdb.set_trace()
                 match = re.search(r"Response:\s*(.*)", response, re.DOTALL)
                 response_text = match.group(1).strip().replace('Tool-call: None', '')
                 print(response_text)
@@ -457,7 +457,7 @@ class SigSpace(Basic_Agent):
                 yield history
                 
             if 'FINISHED' in response:
-                import pdb; pdb.set_trace()
+                # import pdb; pdb.set_trace()
                 next_round = False
 
 
