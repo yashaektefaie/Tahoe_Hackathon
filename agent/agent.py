@@ -562,7 +562,7 @@ class SigSpace(Basic_Agent):
                 response_text = match.group(1).strip()
                 if "None" not in response_text and response_text.replace('-', '').rstrip().replace('FINISHED', '').rstrip():   
                     history.append(ChatMessage(
-                        role="assistant", content=f"{response.replace('FINISHED', '').split('</think>')[1]}"))
+                        role="assistant", content=f"{response.replace('FINISHED', '')}"))
                     yield history 
                     
                     tool_called = True
