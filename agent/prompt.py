@@ -32,4 +32,20 @@ The tool call for this agent is: "self.get_validated_target_jump(drug_name)" whe
 
 The tool call for this agent is: "self.get_ic50_prism(drug_name, cell_line)" where drug_name and cell_line must be strings. The output of this tool is scalar IC50 floating point value. These are not keyword arguments.
 
+(4) A tool which can retrieve gene-set expression scores from the Tahoe-100M dataset.
+
+The tool call for this agent is "self.rank_vision_scores(drug_name, cell_line, k_value)" where drug_name and cell_line must be strings and k_value must be an integer. These are not keyword arguments. The output of this tool is a list of tuples, where each tuple contains a gene-set name and its corresponding expression score. 
+
+(5) A tool which can obtain the mechanism of action for a drug from the Tahoe-100M dataset.
+
+The tool call for this agent is "self.obtain_moa(drug_name)" where drug_name must be a string. This is not a keyword argument. The output of this tool is dictionary that contains a broad mechanism of action and a more specific mechanism of action.
+
+(6) A tool which can retrieve the gene targets for a drug from the Tahoe-100M dataset.
+
+The tool call for this agent is: "self.obtain_gene_targets(drug_name)" where drug_name must be a string. This is not a keyword argument. The output of this tool is a list of gene symbols representing the known molecular targets of the compound.
+
+(7) A tool which can retrieve the cell line metadata from the Tahoe-100M dataset.
+
+The tool call for this agent is: "self.obtain_cell_line_data(cell_line_name)" where cell_line_name must be a string. This is not a keyword argument. The output of this tool is a dictionary containing information about key driver mutations for each cell line.
+
 """

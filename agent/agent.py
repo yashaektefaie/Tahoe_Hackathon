@@ -1,10 +1,12 @@
 from agent.utils import *
 from agent.prompt import *
+import anndata
 import gradio as gr
 from gradio import ChatMessage
 import re
 import pandas as pd
 import pathlib
+import numpy as np
 
 class SigSpace(Basic_Agent):
     def __init__(self, config_path:str):
@@ -26,8 +28,10 @@ class SigSpace(Basic_Agent):
         self.ic50.columns = self.ic50.columns.str.lower()
 
         # Load full Tahoe metadata
-        self.tahoe_cell_meta = pd.read_csv(prism_data_path / "Tahoe_cell_line_metadata.csv")
-        self.tahoe_drug_meta = pd.read_csv(prism_data_path / "Tahoe_drug_metadata.csv")
+        tahoe_path = pathlib.Path("/home/ubuntu/rohit/data")
+        self.tahoe_cell_meta = pd.read_csv(tahoe_path / "cell_line_metadata.csv")
+        self.tahoe_drug_meta = pd.read_csv(tahoe_path / "drug_metadata.csv")
+        self.tahoe_vision_scores = anndata.read_h5ad(tahoe_path / "tahoe_vision_scores.h5ad")
         
         # Load PRISM subset of Tahoe metadata
         self.prism_tahoe_cell_meta = pd.read_csv(prism_data_path / "Tahoe_PRISM_matched_cell_metadata_final.csv")
@@ -103,7 +107,66 @@ class SigSpace(Basic_Agent):
         except KeyError as e:
             print(f"Combination not found: {e}")
             return None
-            
+    
+    def rank_vision_scores(self, drug_name: str, cell_line_name: str, k_value: int):
+        self.tahoe_vision_scores.X = (self.tahoe_vision_scores.X - np.mean(self.tahoe_vision_scores.X, axis = 0)) / np.std(self.tahoe_vision_scores.X, axis = 0)
+
+        filtered_scores = self.tahoe_vision_scores[
+            (self.tahoe_vision_scores.obs["Cell_Name_Vevo"] == cell_line_name) & 
+            (self.tahoe_vision_scores.obs["drug"] == drug_name)
+        ]
+
+        filtered_scores = filtered_scores[filtered_scores.obs["concentration"] == filtered_scores.obs["concentration"].max()]
+
+        sorted_indices = np.argsort(-np.abs(filtered_scores.X[0]))[:k_value]
+        filtered_scores = filtered_scores[:, sorted_indices]
+        
+        gene_set_names = filtered_scores.var.index.tolist()
+        vision_values = [str(value) for value in filtered_scores.X[0].tolist()]
+
+        return list(zip(gene_set_names, vision_values))
+    
+    def obtain_moa(self, drug_name: str):
+        row = self.tahoe_drug_meta[self.tahoe_drug_meta["drug"] == drug_name]
+
+        if row.empty:
+            return None
+        return {
+            "moa-broad": row["moa-broad"].values[0],
+            "moa-fine": row["moa-fine"].values[0]
+        }
+
+    def obtain_gene_targets(self, drug_name: str):
+        row = self.tahoe_drug_meta[self.tahoe_drug_meta["drug"] == drug_name]
+        if row.empty:
+            return None
+        
+        targets = row["targets"].values[0]
+
+        if isinstance(targets, str):
+            try:
+                targets = eval(targets)
+            except:
+                targets = [targets]
+
+        return targets
+
+    def obtain_cell_line_data(self, cell_line_name: str):
+        row = self.tahoe_cell_meta[self.tahoe_cell_meta["cell_name"] == cell_line_name]
+
+        if row.empty:
+            return None
+        
+        return {
+            "organ": row["Organ"].values[0],
+            "driver_gene_symbol": row["Driver_Gene_Symbol"],
+            "driver_varzyg": row["Driver_VarZyg"].values[0],
+            "driver_vartype": row["Driver_VarType"].values[0],
+            "driver_proteffect_cdnaeffect": row["Driver_ProtEffect_or_CdnaEffect"].values[0],
+            "driver_mech_inferdm": row["Driver_Mech_InferDM"].values[0],
+            "driver_genetype_dm": row["Driver_GeneType_DM"].values[0]
+        }   
+
     def run_gradio_chat(self, message: str,
                     history: list,
                     temperature: float,
