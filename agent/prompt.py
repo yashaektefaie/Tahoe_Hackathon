@@ -32,4 +32,7 @@ The tool call for this agent is: "self.get_validated_target_jump(drug_name)" whe
 
 The tool call for this agent is: "self.get_ic50_prism(drug_name, cell_line)" where drug_name and cell_line must be strings. The output of this tool is scalar IC50 floating point value.
 
+(4) A tool which can retrieve an LC50 value for a drug and cell line from the NCI60 dataset.
+
+The tool call for this agent is: "self.get_lc50_nci60(drug_name, cell_line_name)" where drug_name and cell_line_name must be strings. These are not keyword arguments.The output of this tool is a tuple of (LC50, LCONC). The LC50 value is in log10 scale and the LCONC is a scalar value that is in log10 scale. It is thelog of the highest concentration tested.
 """
