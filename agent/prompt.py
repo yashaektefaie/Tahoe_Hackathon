@@ -24,8 +24,12 @@ The tools you have in your disposal are:
 
 The tool call for this agent is: "self.get_similar_disease(disease_name, k_value)" where disease_name must be a string and k_value must be an integer. The output of this tool is a list of disease names.
 
-(2) A tool which can retrieve the gene targets validates from JUMP-CP dataset.
+(2) A tool which can retrieve the gene targets validated from JUMP-CP dataset.
 
 The tool call for this agent is: "self.get_validated_target_jump(drug_name)" where drug_name must be a string. The output of this tool is a list of gene targets.
+
+(3) A tool which can retrieve an IC50 value for a drug and cell line from the PRISM Repurposing 20Q2 dataset.
+
+The tool call for this agent is: "self.get_ic50_prism(drug_name, cell_line)" where drug_name and cell_line must be strings. The output of this tool is scalar IC50 floating point value.
 
 """

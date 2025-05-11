@@ -19,6 +19,25 @@ class SigSpace(Basic_Agent):
         jump_path = pathlib.Path("/home/ubuntu/giovanni/data")
         self.jump_tahoe_drug_metadata = pd.read_csv(jump_path/"drug_metadata_inchikey.csv")
         self.jump_similarity_score = pd.read_csv(jump_path/"compound_genetic_perturbation_cosine_similarity_inchikey.csv")
+        
+        # Load PRISM IC50 matrix
+        prism_data_path = pathlib.Path("/home/ubuntu/sid/Hackathon_Tahoe/data")
+        self.ic50 = pd.read_csv(prism_data_path / "Tahoe_PRISM_cell_by_drug_ic50_matrix_named.csv", index_col=0)
+        self.ic50.columns = self.ic50.columns.str.lower()
+
+        # Load full Tahoe metadata
+        self.tahoe_cell_meta = pd.read_csv(prism_data_path / "Tahoe_cell_line_metadata.csv")
+        self.tahoe_drug_meta = pd.read_csv(prism_data_path / "Tahoe_drug_metadata.csv")
+        
+        # Load PRISM subset of Tahoe metadata
+        self.prism_tahoe_cell_meta = pd.read_csv(prism_data_path / "Tahoe_PRISM_matched_cell_metadata_final.csv")
+        self.prism_tahoe_drug_meta = pd.read_csv(prism_data_path / "Tahoe_PRISM_matched_drug_metadata_final.csv")
+
+        # Build cell line common name to depmap_id map (strip whitespace and case)
+        self.cell_name_to_depmap = {
+            row["cell_name"].strip(): row["Cell_ID_DepMap"]
+            for _, row in self.prism_tahoe_cell_meta.iterrows()
+        }
 
   
     def call_agent(self, message:str):
@@ -86,6 +105,29 @@ class SigSpace(Basic_Agent):
             targets = []
         return targets
     
+    def get_ic50_prism(self, drug_name: str, cell_line_name: str):
+        drug_name_lower = drug_name.strip().lower()
+        cell_line_key = cell_line_name.strip()
+
+        if cell_line_key not in self.cell_name_to_depmap:
+            print(f"Cell line name '{cell_line_key}' not found for PRISM data")
+            return None
+        depmap_id = self.cell_name_to_depmap[cell_line_key]
+
+        if drug_name_lower not in self.ic50.columns:
+            print(f"Drug name '{drug_name}' not found in IC50 matrix columns.")
+            return None
+
+        try:
+            ic50_val = self.ic50.loc[depmap_id, drug_name_lower]
+            if pd.isna(ic50_val):
+                print(f"IC50 value is missing for '{drug_name}' in cell line '{cell_line_name}' (depmap_id: {depmap_id}).")
+                return None
+            return ic50_val
+        except KeyError as e:
+            print(f"Combination not found: {e}")
+            return None
+            
     def run_gradio_chat(self, message: str,
                     history: list,
                     temperature: float,
