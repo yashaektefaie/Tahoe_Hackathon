@@ -24,5 +24,8 @@ The tools you have in your disposal are:
 
 The tool call for this agent is: "self.get_similar_disease(disease_name, k_value)" where disease_name must be a string and k_value must be an integer. The output of this tool is a list of disease names.
 
+(2) A tool which can retrieve the gene targets validates from JUMP-CP dataset.
+
+The tool call for this agent is: "self.get_validated_target_jump(drug_name)" where drug_name must be a string. The output of this tool is a list of gene targets.
 
 """

@@ -3,7 +3,8 @@ from agent.prompt import *
 import gradio as gr
 from gradio import ChatMessage
 import re
-
+import pandas as pd
+import pathlib
 
 class SigSpace(Basic_Agent):
     def __init__(self, config_path:str):
@@ -13,6 +14,12 @@ class SigSpace(Basic_Agent):
         self.conversation = []
         self.conversation.append({"role": "system", "content": self.system_prompt})
         print("\033[1;32;40mAgent_Initialized\033[0m")
+        
+        # initialize data for jump
+        jump_path = pathlib.Path("/home/ubuntu/giovanni/data")
+        self.jump_tahoe_drug_metadata = pd.read_csv(jump_path/"drug_metadata_inchikey.csv")
+        self.jump_similarity_score = pd.read_csv(jump_path/"compound_genetic_perturbation_cosine_similarity_inchikey.csv")
+
   
     def call_agent(self, message:str):
         print("\033[1;32;40mCalling Agent\033[0m")
@@ -68,10 +75,16 @@ class SigSpace(Basic_Agent):
 
     def get_similar_disease(self, disease_name, k_value):
         return 'Parkinsons Disease'
-    
 
-
-
+    def get_validated_target_jump(self, drug_name):
+        try:
+            inchikey = self.jump_tahoe_drug_metadata[self.jump_tahoe_drug_metadata.drug.isin([drug_name])]["InChIKey"].values[0]
+            targets = self.jump_similarity_score[self.jump_similarity_score.InChIKey.isin([inchikey])]["Metadata_matching_target"].unique()
+            targets = targets.tolist()
+        except Exception as e:
+            print(e)
+            targets = []
+        return targets
     
     def run_gradio_chat(self, message: str,
                     history: list,
@@ -287,5 +300,3 @@ class SigSpace(Basic_Agent):
         #         yield history
         #     else:
         #         return None  
-
- 
