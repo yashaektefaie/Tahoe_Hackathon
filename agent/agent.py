@@ -121,9 +121,26 @@ class SigSpace(Basic_Agent):
         except Exception as e:
             print(e)
             return "FAIL"
-        print(orf_crispr_targets)
-        print(known_targets_output)
-        return orf_crispr_targets, known_targets_output
+        
+        orf_crispr_targets = \
+        f"""
+        Preturbation description:
+
+        ORF: The ORF perturbation consists of an overexpression of the target gene.
+        CRISPR: The CRISPR perturbation consists of a knockout of the target gene.
+
+        Considering the drug "{drug_name}", we expect positive correlations with shared CRISPR targets, 
+        and negative correlations with shared ORF targets.
+        
+        But, the measured correlations are:
+
+        {orf_crispr_targets}
+
+        Furthermore, the JUMP dataset has the following known targets for the drug "{drug_name}":
+
+        {known_targets_output}
+        """ 
+        return orf_crispr_targets
     
     def get_ic50_prism(self, drug_name: str, cell_line_name: str):
         drug_name_lower = drug_name.strip().lower()
