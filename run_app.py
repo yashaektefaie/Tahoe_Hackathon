@@ -154,7 +154,7 @@ conversation_state = gr.State([])
 
 # Gradio block
 chatbot = gr.Chatbot(height=400, placeholder=PLACEHOLDER,
-                     label='TxAgent', type="messages",  show_copy_button=True)
+                     label='SigSpace', type="messages",  show_copy_button=True)
 
 with gr.Blocks(css=css) as demo:
     gr.Markdown(DESCRIPTION)
